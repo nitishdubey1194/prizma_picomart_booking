@@ -25,7 +25,7 @@ export default function AppointmentsPage() {
   const updateStatus = useUpdateAppointmentStatus(subdomain);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const isVendor = user?.roles.includes('vendor') ?? false;
+  const isVendor = user?.role.includes('vendor') ?? false;
 
   if (!isVendor) {
     return <p className="text-ink/60">You don&apos;t have access to this page.</p>;

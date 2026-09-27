@@ -56,11 +56,10 @@ export default async function TenantHome({
           '@type': 'LocalBusiness',
           name: businessName,
           url: `https://${subdomain}.picomart.in`,
-          makesOffer: services.map((s) => ({
+          makesOffer: (Array.isArray(services) ? services : []).map((s) => ({
             '@type': 'Offer',
             itemOffered: { '@type': 'Service', name: s.name },
             price: s.price,
-            priceCurrency: 'INR',
           })),
         }}
       />

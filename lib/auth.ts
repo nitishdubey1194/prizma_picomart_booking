@@ -19,4 +19,11 @@ export async function getAccessToken(): Promise<string | null> {
   const tokens = await webTokenStorage.getTokens();
   return tokens?.accessToken ?? null;
 }
-// (ApiError is already exported above via `export class ApiError` — no change needed)
+
+export async function setAuthTokens(tokens: { accessToken: string; refreshToken: string }): Promise<void> {
+  await webTokenStorage.setTokens(tokens);
+}
+
+export async function clearAuthTokens(): Promise<void> {
+  await webTokenStorage.clearTokens();
+}

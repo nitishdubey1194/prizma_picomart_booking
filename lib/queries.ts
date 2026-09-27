@@ -6,7 +6,7 @@ export { WEEKDAY_NAMES };
 export type CurrentUser = {
   id: string;
   email: string;
-  roles: string[];
+  role: string[];
   providerId: number | null;
 };
 export const queryKeys = {
@@ -16,10 +16,10 @@ export const queryKeys = {
     ['availability', tenantSlug, providerId, date] as const,
 };
 
-export function useProviders(tenantSlug: string) {
+export function useProviders(tenantSlug: string, serviceId?: number | string | null) {
   return useQuery({
-    queryKey: queryKeys.providers(tenantSlug),
-    queryFn: () => getProviders(tenantSlug),
+    queryKey: ["providers", tenantSlug, serviceId ?? "all"],
+    queryFn: () => getProviders(tenantSlug,serviceId ?? "all"),
   });
 }
 
@@ -47,26 +47,21 @@ export function useBookAppointment(tenantSlug: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: {
+    mutationFn: (variables: {
       accessToken: string;
       providerId: number;
       serviceId: number;
       startTime: string;
+      endTime: string;
+      localDate: string;
       customerNotes?: string;
-    }) =>
-      bookAppointment(tenantSlug, payload.accessToken, {
-        providerId: payload.providerId,
-        serviceId: payload.serviceId,
-        startTime: payload.startTime,
-        customerNotes: payload.customerNotes,
-      }),
-    onSuccess: (_data, variables) => {
-      // The booked slot is now taken — invalidate that day's availability
-      // so anyone re-opening the picker doesn't see a stale open slot.
-      const date = variables.startTime.slice(0, 10);
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.availability(tenantSlug, variables.providerId, date),
-      });
+    }) => {
+      const { accessToken, ...payload } = variables;
+      return bookAppointment(tenantSlug, accessToken, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments", tenantSlug] });
+      queryClient.invalidateQueries({ queryKey: ["availability", tenantSlug] });
     },
   });
 }

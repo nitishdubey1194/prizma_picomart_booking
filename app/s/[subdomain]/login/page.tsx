@@ -2,20 +2,37 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { authClient } from '@/lib/auth';
+import { authClient, setAuthTokens } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import Link from 'next/link';
+
+interface LoginResponse {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    tenantId: number;
+  };
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+  };
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { subdomain } = useParams<{ subdomain: string }>();
-  const isDev = process.env.NODE_ENV === 'development';
-  const base = isDev
-    ? `http://${subdomain}.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'localhost:3000'}`
-    : `https://${subdomain}.${process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'picomart.in'}`;
+  const params = useParams<{ subdomain?: string }>();
+  const subdomain = params?.subdomain;
 
-  const returnTo = searchParams.get('returnTo') ?? base;
+  const isDev = process.env.NODE_ENV === 'development';
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? (isDev ? 'localhost:3000' : 'picomart.in');
+  const base = subdomain
+    ? `${isDev ? 'http' : 'https'}://${subdomain}.${rootDomain}`
+    : '';
+
+  // Default to relative root if base cannot be built
+  const returnTo = searchParams.get('returnTo') ?? (base || '/');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,11 +43,35 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+
     try {
-      await authClient.login(email, password);
-      router.push(returnTo);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong signing in.');
+      // 1. Call login on authClient
+      const res = (await authClient.login(email, password)) as unknown as LoginResponse;
+
+      // 2. Explicitly commit tokens to webTokenStorage if returned
+      if (res?.tokens) {
+        await setAuthTokens(res.tokens);
+      }
+
+      // 3. Navigate: Use full browser reload for cross-subdomain/full URLs,
+      // or router.push + router.refresh for relative paths.
+      const isExternalOrSubdomain =
+        returnTo.startsWith('http://') || returnTo.startsWith('https://');
+
+      if (isExternalOrSubdomain) {
+        window.location.href = returnTo;
+      } else {
+        router.push(returnTo);
+        router.refresh();
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+          ? err.message
+          : 'Something went wrong signing in.'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -71,7 +112,10 @@ export default function LoginPage() {
       </form>
       <p className="mt-6 text-sm text-ink/60">
         New here?{' '}
-        <Link href={`${base}/register?returnTo=${encodeURIComponent(returnTo)}`} className="text-brass hover:underline">
+        <Link
+          href={`${base}/register?returnTo=${encodeURIComponent(returnTo)}`}
+          className="text-brass hover:underline"
+        >
           Create an account
         </Link>
       </p>

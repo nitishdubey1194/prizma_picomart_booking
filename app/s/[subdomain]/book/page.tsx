@@ -31,17 +31,6 @@ export default async function BookPage({
 
   const queryClient = getQueryClient();
 
-  await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.providers(subdomain),
-      queryFn: () => getProviders(subdomain),
-    }),
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.services(subdomain),
-      queryFn: () => getServices(subdomain),
-    }),
-  ]);
-
   const businessName = titleCase(subdomain);
 
   return (

@@ -20,10 +20,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const base = `${isDev ? 'http' : 'https'}://${subdomain}.${rootDomain}`;
 
   const { data: user, isLoading } = useCurrentUser(subdomain);
-  const isVendor = user?.roles.includes('vendor') ?? false;
+  
+  const isVendor = user?.role?.includes('vendor') ?? false;
   const isProvider = user?.providerId !== null && user?.providerId !== undefined;
   const hasDashboardAccess = isVendor || isProvider;
-
+  console.log(hasDashboardAccess,'dsfdsfd', isVendor, isProvider, user)
   useEffect(() => {
     if (isLoading) return;
     if (!user) {

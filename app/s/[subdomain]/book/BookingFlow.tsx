@@ -14,7 +14,15 @@ import { getAccessToken } from "@/lib/auth";
 
 type Step = "configure" | "confirm" | "done";
 
-function formatTime(iso: string) {
+interface CalendarDay {
+  iso: string;
+  dayName: string;
+  dayNum: number;
+  month: string;
+  isToday: boolean;
+}
+
+function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-IN", {
     hour: "numeric",
     minute: "2-digit",
@@ -22,7 +30,7 @@ function formatTime(iso: string) {
   });
 }
 
-function formatDateLabel(dateStr: string) {
+function formatDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString("en-IN", {
@@ -32,27 +40,70 @@ function formatDateLabel(dateStr: string) {
   });
 }
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
   const router = useRouter();
-  const { data: providers = [], isLoading: loadingProviders } = useProviders(tenantSlug);
-  const { data: services = [], isLoading: loadingServices } = useServices(tenantSlug);
 
+  // Core selection states
   const [step, setStep] = useState<Step>("configure");
   const [service, setService] = useState<Service | null>(null);
-  const [provider, setProvider] = useState<Provider | null>(null);
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null);
+  const [date, setDate] = useState<string>(() => formatLocalDate(new Date()));
   const [slot, setSlot] = useState<AvailabilitySlot | null>(null);
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  // Generate the next 14 selectable calendar days
-  const calendarDays = useMemo(() => {
-    const list = [];
+  // Queries
+  const { data: rawServices, isLoading: loadingServices } = useServices(tenantSlug);
+  const { data: rawProviders, isLoading: loadingProviders } = useProviders(
+    tenantSlug,
+    service?.id ?? null
+  );
+
+  const services: Service[] = useMemo(() => {
+    if (Array.isArray(rawServices)) return rawServices;
+    if (
+      rawServices &&
+      typeof rawServices === "object" &&
+      "services" in rawServices &&
+      Array.isArray((rawServices as { services: unknown }).services)
+    ) {
+      return (rawServices as { services: Service[] }).services;
+    }
+    return [];
+  }, [rawServices]);
+
+  const providers: Provider[] = useMemo(() => {
+    if (Array.isArray(rawProviders)) return rawProviders;
+    if (
+      rawProviders &&
+      typeof rawProviders === "object" &&
+      "providers" in rawProviders &&
+      Array.isArray((rawProviders as { providers: unknown }).providers)
+    ) {
+      return (rawProviders as { providers: Provider[] }).providers;
+    }
+    return [];
+  }, [rawProviders]);
+
+  // Derived state: Automatically nullifies if selected provider is not in the filtered list
+  const provider: Provider | null = useMemo(() => {
+    if (!selectedProviderId) return null;
+    return providers.find((p) => p.id === selectedProviderId) ?? null;
+  }, [providers, selectedProviderId]);
+
+  const calendarDays: CalendarDay[] = useMemo(() => {
+    const list: CalendarDay[] = [];
     const now = new Date();
     for (let i = 0; i < 14; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + i);
-      const iso = d.toISOString().slice(0, 10);
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      const iso = formatLocalDate(d);
       list.push({
         iso,
         dayName: d.toLocaleDateString("en-IN", { weekday: "short" }),
@@ -64,23 +115,42 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
     return list;
   }, []);
 
-  const { data: slots = [], isLoading: loadingSlots } = useAvailability(
+  const { data: rawSlots, isLoading: loadingSlots } = useAvailability(
     tenantSlug,
     provider?.id ?? null,
     date,
     service?.id ?? null
   );
 
+  const slots: AvailabilitySlot[] = useMemo(() => {
+    if (Array.isArray(rawSlots)) return rawSlots;
+    if (
+      rawSlots &&
+      typeof rawSlots === "object" &&
+      "slots" in rawSlots &&
+      Array.isArray((rawSlots as { slots: unknown }).slots)
+    ) {
+      return (rawSlots as { slots: AvailabilitySlot[] }).slots;
+    }
+    return [];
+  }, [rawSlots]);
+
   const bookMutation = useBookAppointment(tenantSlug);
 
-  // Auto-select first provider if only one exists
-  useMemo(() => {
-    if (providers.length === 1 && !provider) {
-      setProvider(providers[0]);
+  const handleServiceSelect = (newService: Service) => {
+    if (service?.id !== newService.id) {
+      setService(newService);
+      setSelectedProviderId(null);
+      setSlot(null);
     }
-  }, [providers, provider]);
+  };
 
-  async function handleConfirm() {
+  const handleProviderSelect = (p: Provider) => {
+    setSelectedProviderId(p.id);
+    setSlot(null);
+  };
+
+  async function handleConfirm(): Promise<void> {
     if (!provider || !service || !slot) return;
 
     const token = await getAccessToken();
@@ -96,11 +166,13 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
         providerId: provider.id,
         serviceId: service.id,
         startTime: slot.startTime,
+        endTime: slot.endTime,
+        localDate: date,
         customerNotes: notes.trim() || undefined,
       },
       {
         onSuccess: () => setStep("done"),
-        onError: (err) =>
+        onError: (err: unknown) =>
           setError(
             err instanceof Error
               ? err.message
@@ -110,9 +182,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
     );
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* SUCCESS / CONFIRMED VIEW                                                   */
-  /* -------------------------------------------------------------------------- */
   if (step === "done") {
     return (
       <div className="mx-auto max-w-xl text-center">
@@ -162,6 +231,7 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
               onClick={() => {
                 setStep("configure");
                 setService(null);
+                setSelectedProviderId(null);
                 setSlot(null);
                 setNotes("");
               }}
@@ -175,14 +245,10 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
     );
   }
 
-  /* -------------------------------------------------------------------------- */
-  /* MAIN BOOKING CONSOLE                                                       */
-  /* -------------------------------------------------------------------------- */
   return (
     <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:items-start lg:gap-16">
-      {/* LEFT COLUMN: Progressive Selection Flow (7 cols) */}
       <div className="space-y-12 lg:col-span-7">
-        {/* SECTION 1: Service Selection */}
+        {/* Step 01: Service */}
         <section>
           <div className="flex items-baseline justify-between border-b border-ink/10 pb-4">
             <div className="flex items-center gap-2.5">
@@ -206,10 +272,7 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => {
-                      setService(s);
-                      setSlot(null);
-                    }}
+                    onClick={() => handleServiceSelect(s)}
                     className={`group relative flex w-full items-start justify-between rounded-2xl border p-5 text-left transition-all duration-150 ${
                       isSelected
                         ? "border-ink bg-white shadow-sm ring-1 ring-ink"
@@ -222,11 +285,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
                         <span className="text-ink/30">•</span>
                         <span className="text-xs text-ink/50">{s.durationMinutes} mins</span>
                       </div>
-                      {s.description && (
-                        <p className="mt-1 text-xs leading-relaxed text-ink/60 line-clamp-2">
-                          {s.description}
-                        </p>
-                      )}
                     </div>
                     <div
                       className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all ${
@@ -244,7 +302,7 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
           )}
         </section>
 
-        {/* SECTION 2: Specialist (Providers) */}
+        {/* Step 02: Specialists */}
         <section className={!service ? "opacity-40 pointer-events-none transition-opacity" : "transition-opacity"}>
           <div className="flex items-baseline justify-between border-b border-ink/10 pb-4">
             <div className="flex items-center gap-2.5">
@@ -262,6 +320,12 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
                 <div key={i} className="h-16 w-36 animate-pulse rounded-2xl bg-ink/5" />
               ))}
             </div>
+          ) : providers.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-ink/15 bg-white/30 p-6 text-center">
+              <p className="text-xs text-ink/50">
+                {service ? "No specialists are currently assigned to this service." : "Select a service above to view specialists."}
+              </p>
+            </div>
           ) : (
             <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {providers.map((p) => {
@@ -270,10 +334,7 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => {
-                      setProvider(p);
-                      setSlot(null);
-                    }}
+                    onClick={() => handleProviderSelect(p)}
                     className={`flex items-center gap-3.5 rounded-2xl border p-4 text-left transition-all ${
                       isSelected
                         ? "border-ink bg-white shadow-sm ring-1 ring-ink"
@@ -298,8 +359,8 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
           )}
         </section>
 
-        {/* SECTION 3: Date & Slot Calendar */}
-        <section className={!service ? "opacity-40 pointer-events-none transition-opacity" : "transition-opacity"}>
+        {/* Step 03: Date & Timeslots */}
+        <section className={!service || !provider ? "opacity-40 pointer-events-none transition-opacity" : "transition-opacity"}>
           <div className="flex items-baseline justify-between border-b border-ink/10 pb-4">
             <div className="flex items-center gap-2.5">
               <span className="font-mono text-xs font-semibold text-brass">03</span>
@@ -308,7 +369,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
             <span className="text-xs text-ink/50">{formatDateLabel(date)}</span>
           </div>
 
-          {/* Horizontal Calendar Date Ribbon */}
           <div className="mt-5">
             <div className="no-scrollbar -mx-2 flex gap-2 overflow-x-auto px-2 pb-2">
               {calendarDays.map((d) => {
@@ -342,7 +402,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
             </div>
           </div>
 
-          {/* Available Slot Pills */}
           <div className="mt-6">
             <p className="text-xs font-semibold uppercase tracking-wider text-ink/40">
               Available Timeslots
@@ -383,7 +442,7 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
         </section>
       </div>
 
-      {/* RIGHT COLUMN: Sticky Session Ledger Card (5 cols) */}
+      {/* Manifest sidebar */}
       <aside className="lg:sticky lg:top-28 lg:col-span-5">
         <div className="rounded-3xl border border-ink/10 bg-white/80 p-6 shadow-sm backdrop-blur-md sm:p-7">
           <div className="flex items-center justify-between border-b border-ink/10 pb-4">
@@ -394,7 +453,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
             </span>
           </div>
 
-          {/* Details breakdown */}
           <div className="mt-5 space-y-4 text-xs">
             <div>
               <span className="text-[10px] uppercase tracking-wider text-ink/40">Treatment</span>
@@ -424,7 +482,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
               )}
             </div>
 
-            {/* Special Instructions Input */}
             <div className="border-t border-ink/5 pt-3">
               <label htmlFor="notes" className="block text-[10px] uppercase tracking-wider text-ink/40">
                 Special Requests (Optional)
@@ -446,7 +503,6 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
             </div>
           )}
 
-          {/* Action Button */}
           <div className="mt-6 border-t border-ink/10 pt-4">
             <button
               type="button"
@@ -458,6 +514,8 @@ export function BookingFlow({ tenantSlug }: { tenantSlug: string }) {
                 ? "Locking Session…"
                 : !service
                 ? "Choose Service First"
+                : !provider
+                ? "Select Specialist"
                 : !slot
                 ? "Select Time Slot"
                 : "Reserve Appointment"}

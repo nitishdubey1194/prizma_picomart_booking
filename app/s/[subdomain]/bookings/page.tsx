@@ -258,7 +258,7 @@ export default function MyBookingsPage() {
         {/* Appointments List Matrix */}
         {!isLoading && !error && filteredAppointments.length > 0 && (
           <ul className="mt-8 space-y-4">
-            {filteredAppointments.map((a) => {
+            {filteredAppointments.length > 0 && filteredAppointments.map((a) => {
               const startDate = new Date(a.startTime);
               const statusCfg = STATUS_MAP[a.status] ?? {
                 label: a.status,
@@ -306,7 +306,7 @@ export default function MyBookingsPage() {
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink/65">
                         <span className="flex items-center gap-1.5 font-medium text-ink">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ink/5 text-[10px] uppercase font-mono">
-                            {a.providerName.charAt(0)}
+                            {a.providerName ? a.providerName.charAt(0) : ''}
                           </span>
                           {a.providerName}
                         </span>
