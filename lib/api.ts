@@ -41,6 +41,7 @@ export type Provider = {
   photoUrl?: string | null;
   userId?: string | null;
   isActive?: boolean;
+  userLinkEmail?: string | null;
 };
 
 export type Service = {
@@ -94,6 +95,23 @@ export interface BookAppointmentPayload {
   customerNotes?: string;
 }
 
+export interface ProviderServiceMapping {
+  id: number | string;
+  providerId: number;
+  serviceId: number;
+  customDurationMinutes?: number | null;
+  customPrice?: number | string | null;
+  serviceName?: string;
+  serviceDescription?: string | null;
+  defaultDurationMinutes?: number;
+  defaultPrice?: number | string;
+}
+
+export interface LinkProviderServicePayload {
+  serviceId: number | string;
+  customDurationMinutes?: number | null;
+  customPrice?: number | string | null;
+}
 // ---------------------------------------------------------------------------
 // Base Fetch Wrapper
 // ---------------------------------------------------------------------------
@@ -538,7 +556,7 @@ export function linkProviderToUser(
   tenantSlug: string,
   accessToken: string,
   providerId: number,
-  userId: string
+  userId: string | null
 ) {
   return apiFetch<Provider>(`/api/providers/${providerId}/link`, tenantSlug, {
     method: 'POST',
@@ -547,6 +565,64 @@ export function linkProviderToUser(
     body: JSON.stringify({ userId }),
   });
 }
+
+
+/**
+ * Assign a service to a provider (with optional price/duration overrides)
+ */
+export function linkProviderToService(
+  tenantSlug: string,
+  accessToken: string,
+  providerId: number,
+  payload: LinkProviderServicePayload
+) {
+  return apiFetch<{ success: boolean; data: ProviderServiceMapping }>(
+    `/api/providers/${providerId}/services`,
+    tenantSlug,
+    {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+/**
+ * Remove an assigned service from a provider
+ */
+export function unlinkProviderToService(
+  tenantSlug: string,
+  accessToken: string,
+  providerId: number,
+  serviceId: number | string
+) {
+  return apiFetch<{ success: boolean; data: { serviceId: number | string } } | void>(
+    `/api/providers/${providerId}/services/${serviceId}`,
+    tenantSlug,
+    {
+      method: 'DELETE',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+}
+
+// export async function unlinkProviderService(
+//   subdomain: string,
+//   accessToken: string,
+//   providerId: string,
+//   serviceId: string,
+// ) {
+//   const res = apiFetch(`/api/providers/${providerId}/services/${serviceId}`, {
+//     method: 'DELETE',
+//     cache: 'no-store',
+//     headers: { Authorization: `Bearer ${accessToken}` },
+//   });
+//   const json = await res.json();
+//   if (!res.ok) throw new Error(json.error || 'Failed to remove service mapping');
+//   return json.data;
+// }
 
 // ---------------------------------------------------------------------------
 // Tenant Resolution
@@ -564,4 +640,26 @@ export async function getTenant(subdomain: string): Promise<Tenant | null> {
     return data.tenant;
   }
   return data as Tenant;
+}
+
+export async function getProviderAssignedServices(
+  tenantSlug: string,
+  providerId: number
+): Promise<Service[]> {
+  const data = await apiFetch<
+    Service[] | { services: Service[] } | { data: Service[] }
+  >(`/api/providers/${providerId}/services`, tenantSlug, {
+    cache: 'no-store',
+  });
+
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    if ('services' in data && Array.isArray(data.services)) {
+      return data.services;
+    }
+    if ('data' in data && Array.isArray(data.data)) {
+      return data.data;
+    }
+  }
+  return [];
 }

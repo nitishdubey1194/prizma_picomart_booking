@@ -2,21 +2,37 @@
 
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { useProviders, useCreateProvider, useDeleteProvider, useUserSearch, useLinkProvider } from '@/lib/queries';
+import {
+  useProviders,
+  useCreateProvider,
+  useDeleteProvider,
+  useServices,
+  useProviderAssignedServices,
+} from '@/lib/queries';
+import { Provider, Service } from '@/lib/api';
+import ProviderServicesModal from '@/components/ProviderServicesModal';
+import LinkAccountModal from '@/components/LinkAccountModal';
 
 export default function ProvidersPage() {
   const { subdomain } = useParams<{ subdomain: string }>();
-  const { data: providers = [], isLoading } = useProviders(subdomain);
+
+  // Queries
+  const { data: providers = [], isLoading: isLoadingProviders, refetch: refetchProviders } = useProviders(subdomain);
+  const { data: allServices = [], isLoading: isLoadingServices } = useServices(subdomain);
   const createProvider = useCreateProvider(subdomain);
   const deleteProvider = useDeleteProvider(subdomain);
 
+  // Form states
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [category, setCategory] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [linkingProviderId, setLinkingProviderId] = useState<number | null>(null);
 
-  function handleCreate(e: React.FormEvent) {
+  // Modals
+  const [selectedProviderForServices, setSelectedProviderForServices] = useState<Provider | null>(null);
+  const [selectedProviderForAccount, setSelectedProviderForAccount] = useState<Provider | null>(null);
+
+  function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     createProvider.mutate(
@@ -27,133 +43,255 @@ export default function ProvidersPage() {
           setSlug('');
           setCategory('');
         },
-        onError: (err) => setError(err instanceof Error ? err.message : 'Failed to create provider.'),
+        onError: (err: unknown) => {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Failed to create provider.');
+          }
+        },
       }
     );
   }
 
-  if (isLoading) return <p className="text-ink/60">Loading…</p>;
+  const isLoading = isLoadingProviders || isLoadingServices;
 
+  if (isLoading) {
+    return (
+      <div className="flex h-48 items-center justify-center">
+        <p className="text-sm tracking-wide text-ink/60 animate-pulse">Loading providers and catalog…</p>
+      </div>
+    );
+  }
   return (
-    <div>
-      <h1 className="mb-6 font-display text-2xl">Providers</h1>
+    <div className="max-w-5xl">
+      <div className="mb-6 flex flex-col gap-1 border-b border-ink/10 pb-4">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Staff & Providers</h1>
+        <p className="text-sm text-ink/60">
+          Manage practitioner profiles, assign bookable services, and connect login accounts.
+        </p>
+      </div>
 
-      <ul className="mb-8">
-        {providers.map((p) => (
-          <li key={p.id} className="ledger-row py-3">
-            <div className="flex items-center justify-between">
-              <span>
-                {p.name} <span className="text-ink/50">· {p.category}</span>
-              </span>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setLinkingProviderId(linkingProviderId === p.id ? null : p.id)}
-                  className="text-sm text-brass hover:underline"
-                >
-                  {linkingProviderId === p.id ? 'Cancel' : 'Link account'}
-                </button>
-                <button
-                  onClick={() => deleteProvider.mutate(p.id)}
-                  disabled={deleteProvider.isPending}
-                  className="text-sm text-red-700 hover:underline disabled:opacity-50"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-            {linkingProviderId === p.id && (
-              <LinkProviderPicker
-                tenantSlug={subdomain}
-                providerId={p.id}
-                onDone={() => setLinkingProviderId(null)}
-              />
-            )}
-          </li>
-        ))}
-      </ul>
+      {providers.length === 0 ? (
+        <div className="mb-8 rounded-lg border border-dashed border-ink/20 p-8 text-center">
+          <p className="text-sm text-ink/60">No providers have been registered for this location yet.</p>
+        </div>
+      ) : (
+        <ul className="mb-8 divide-y divide-ink/10">
+          {providers.map((p) => (
+            <ProviderRowItem
+              key={p.id}
+              provider={p}
+              tenantSlug={subdomain}
+              isDeleting={deleteProvider.isPending}
+              onManageAccount={() => setSelectedProviderForAccount(p)}
+              onManageServices={() => setSelectedProviderForServices(p)}
+              onDelete={() => deleteProvider.mutate(p.id)}
+            />
+          ))}
+        </ul>
+      )}
 
-      <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-3 border-t border-ink/10 pt-6">
-        <label className="text-sm">
-          Name
-          <input required value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block border border-ink/20 px-3 py-2" />
-        </label>
-        <label className="text-sm">
-          Slug
-          <input required value={slug} onChange={(e) => setSlug(e.target.value)} className="mt-1 block border border-ink/20 px-3 py-2" />
-        </label>
-        <label className="text-sm">
-          Category
-          <input required value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block border border-ink/20 px-3 py-2" />
-        </label>
-        <button
-          type="submit"
-          disabled={createProvider.isPending}
-          className="rounded-sm bg-brass px-4 py-2 text-sm font-medium text-white hover:bg-ink disabled:opacity-60"
-        >
-          Add provider
-        </button>
-      </form>
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      {/* Provider Creation Form */}
+      <div className="rounded-lg border border-ink/10 bg-white/50 p-6 shadow-sm dark:bg-zinc-900/50">
+        <h2 className="mb-4 text-base font-semibold text-ink">Add New Provider</h2>
+        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-4">
+          <label className="flex-1 min-w-[200px] text-xs font-medium uppercase tracking-wider text-ink/70">
+            Full Name
+            <input
+              required
+              placeholder="Dr. Jane Smith"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (!slug) {
+                  setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+                }
+              }}
+              className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
+            />
+          </label>
+          <label className="flex-1 min-w-[180px] text-xs font-medium uppercase tracking-wider text-ink/70">
+            URL Slug
+            <input
+              required
+              placeholder="jane-smith"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
+            />
+          </label>
+          <label className="flex-1 min-w-[180px] text-xs font-medium uppercase tracking-wider text-ink/70">
+            Specialty / Category
+            <input
+              required
+              placeholder="Dermatology, Barber, Massage"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={createProvider.isPending}
+            className="h-[38px] rounded bg-brass px-5 text-sm font-medium text-white transition-colors hover:bg-ink disabled:opacity-50"
+          >
+            {createProvider.isPending ? 'Adding…' : 'Add Provider'}
+          </button>
+        </form>
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      </div>
+
+      {/* Service Assignment Modal */}
+      {selectedProviderForServices && (
+        <ProviderServicesModalWrapper
+          tenantSlug={subdomain}
+          provider={selectedProviderForServices}
+          allServices={allServices}
+          onClose={() => setSelectedProviderForServices(null)}
+          onDataChanged={() => {
+            void refetchProviders();
+          }}
+        />
+      )}
+
+      {/* Link Account Modal */}
+
+      {selectedProviderForAccount && (
+        <LinkAccountModal
+          isOpen={true}
+          tenantSlug={subdomain}
+          provider={selectedProviderForAccount}
+          onClose={() => setSelectedProviderForAccount(null)}
+          onRefresh={async () => {
+            const { data } = await refetchProviders();
+            console.log(data,'sdfd')
+            if (data) {
+              const updated = data.find((p) => p.id === selectedProviderForAccount.id);
+              if (updated) setSelectedProviderForAccount(updated);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function LinkProviderPicker({
-  tenantSlug,
-  providerId,
-  onDone,
-}: {
+// ---------------------------------------------------------------------------
+// Row Item Component
+// ---------------------------------------------------------------------------
+
+interface ProviderRowItemProps {
+  provider: Provider;
   tenantSlug: string;
-  providerId: number;
-  onDone: () => void;
-}) {
-  const [email, setEmail] = useState('');
-  const { data: results = [], isFetching } = useUserSearch(tenantSlug, email);
-  const linkProvider = useLinkProvider(tenantSlug);
-  const [linkError, setLinkError] = useState<string | null>(null);
+  isDeleting: boolean;
+  onManageAccount: () => void;
+  onManageServices: () => void;
+  onDelete: () => void;
+}
+
+function ProviderRowItem({
+  provider,
+  tenantSlug,
+  isDeleting,
+  onManageAccount,
+  onManageServices,
+  onDelete,
+}: ProviderRowItemProps) {
+  const { data: assigned = [], isLoading } = useProviderAssignedServices(tenantSlug, provider.id);
+  const displayEmail = provider.userLinkEmail || (provider.userId?.includes('@') ? provider.userId : null);
 
   return (
-    <div className="mt-3 border border-ink/10 bg-white/40 p-4">
-      <label className="text-sm">
-        Search by email
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="customer@example.com"
-          className="mt-1 block w-full border border-ink/20 px-3 py-2"
-        />
-      </label>
+    <li className="py-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-ink">{provider.name}</span>
+            <span className="rounded bg-ink/5 px-2 py-0.5 text-xs text-ink/60">
+              {provider.category}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-3 text-xs text-ink/50">
+            <span>Slug: /{provider.slug}</span>
+            <span>·</span>
+            <span>
+              {isLoading
+                ? 'Loading services…'
+                : `${assigned.length} ${assigned.length === 1 ? 'service' : 'services'} mapped`}
+            </span>
+          </div>
+        </div>
 
-      {isFetching && <p className="mt-2 text-sm text-ink/50">Searching…</p>}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onManageServices}
+            className="rounded border border-ink/20 px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-brass hover:text-brass"
+          >
+            Assign Services ({assigned.length})
+          </button>
 
-      {!isFetching && email.length >= 3 && results.length === 0 && (
-        <p className="mt-2 text-sm text-ink/50">No matching accounts.</p>
-      )}
+          <button
+            type="button"
+            onClick={onManageAccount}
+            className={`rounded border px-3 py-1.5 text-xs font-medium transition-colors ${
+              displayEmail || provider.userId
+                ? 'border-emerald-300 bg-emerald-50/60 text-emerald-800 hover:border-emerald-400 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300'
+                : 'border-ink/20 text-ink hover:border-brass hover:text-brass'
+            }`}
+          >
+            {displayEmail ? `Account: ${displayEmail}` : provider.userId ? 'Account Linked' : '+ Link Account'}
+          </button>
 
-      <ul className="mt-2">
-        {results.map((u) => (
-          <li key={u.id} className="flex items-center justify-between py-1.5 text-sm">
-            <span>{u.email}</span>
-            <button
-              onClick={() => {
-                setLinkError(null);
-                linkProvider.mutate(
-                  { providerId, userId: u.id },
-                  {
-                    onSuccess: onDone,
-                    onError: (err) => setLinkError(err instanceof Error ? err.message : 'Failed to link.'),
-                  }
-                );
-              }}
-              disabled={linkProvider.isPending}
-              className="text-brass hover:underline disabled:opacity-50"
-            >
-              Link
-            </button>
-          </li>
-        ))}
-      </ul>
-      {linkError && <p className="mt-2 text-sm text-red-700">{linkError}</p>}
-    </div>
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleting}
+            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Service Modal Connector
+// ---------------------------------------------------------------------------
+
+interface ProviderServicesModalWrapperProps {
+  tenantSlug: string;
+  provider: Provider;
+  allServices: Service[];
+  onClose: () => void;
+  onDataChanged: () => void;
+}
+
+function ProviderServicesModalWrapper({
+  tenantSlug,
+  provider,
+  allServices,
+  onClose,
+  onDataChanged,
+}: ProviderServicesModalWrapperProps) {
+  const { data: assigned = [], refetch } = useProviderAssignedServices(tenantSlug, provider.id);
+
+  const handleRefresh = async (): Promise<void> => {
+    await refetch();
+    onDataChanged();
+  };
+
+  return (
+    <ProviderServicesModal
+      isOpen={true}
+      onClose={onClose}
+      tenantSlug={tenantSlug}
+      provider={provider}
+      allServices={allServices}
+      assignedServices={assigned}
+      onRefresh={handleRefresh}
+    />
   );
 }

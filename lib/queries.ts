@@ -1,5 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getProviders, getServices, getAvailability, bookAppointment, updateAppointmentStatus, getAppointments, deleteService, createService, deleteProvider, createProvider, deleteException, createException, getExceptions, deleteAvailabilityBlock, createAvailabilityBlock, getAvailabilityBlocks, cancelAppointment, searchUsers, linkProviderToUser  } from '@/lib/api';
+import { getProviders, getServices, getAvailability, bookAppointment, updateAppointmentStatus, getAppointments, deleteService, createService, deleteProvider, createProvider, deleteException, createException, getExceptions, deleteAvailabilityBlock, createAvailabilityBlock, getAvailabilityBlocks, cancelAppointment, searchUsers, linkProviderToUser,
+
+  getProviderAssignedServices,
+  linkProviderToService,
+  unlinkProviderToService,
+  LinkProviderServicePayload,
+  } from '@/lib/api';
 import { getAccessToken } from './auth';
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export { WEEKDAY_NAMES };
@@ -243,11 +249,63 @@ export function useUserSearch(tenantSlug: string, email: string) {
 export function useLinkProvider(tenantSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ providerId, userId }: { providerId: number; userId: string }) => {
+    mutationFn: async ({ providerId, userId }: { providerId: number; userId: string | null }) => {
       const token = await getAccessToken();
       if (!token) throw new Error('Not signed in.');
       return linkProviderToUser(tenantSlug, token, providerId, userId);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.providers(tenantSlug) }),
+  });
+}
+
+export function useProviderAssignedServices(tenantSlug: string, providerId: number) {
+  return useQuery({
+    queryKey: ['provider-services', tenantSlug, providerId],
+    queryFn: () => getProviderAssignedServices(tenantSlug, providerId),
+    enabled: !!tenantSlug && !!providerId,
+  });
+}
+
+export function useLinkServiceToProvider(tenantSlug: string, accessToken: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      providerId,
+      payload,
+    }: {
+      providerId: number;
+      payload: LinkProviderServicePayload;
+    }) => linkProviderToService(tenantSlug, accessToken, providerId, payload),
+    onSuccess: (_, { providerId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['provider-services', tenantSlug, providerId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['providers', tenantSlug],
+      });
+    },
+  });
+}
+
+export function useUnlinkServiceFromProvider(tenantSlug: string, accessToken: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      providerId,
+      serviceId,
+    }: {
+      providerId: number;
+      serviceId: number | string;
+    }) => unlinkProviderToService(tenantSlug, accessToken, providerId, serviceId),
+    onSuccess: (_, { providerId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ['provider-services', tenantSlug, providerId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['providers', tenantSlug],
+      });
+    },
   });
 }
