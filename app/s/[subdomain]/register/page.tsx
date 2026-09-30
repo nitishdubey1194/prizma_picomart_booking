@@ -12,7 +12,8 @@ export default function RegisterPage() {
   const { subdomain } = useParams<{ subdomain: string }>();
   const base = "";
   const returnTo = searchParams.get('returnTo') ?? base;
-
+  const [fullname, setFullname] = useState('');
+  const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await authClient.register(email, password);
+      await authClient.register(email, password, mobile, fullname);
       router.push(returnTo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong creating your account.');
@@ -36,6 +37,26 @@ export default function RegisterPage() {
     <main className="mx-auto max-w-sm px-6 py-20">
       <h1 className="font-display text-3xl">Create an account</h1>
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+        <label className="text-sm">
+          Full Name
+          <input
+            type="fullname"
+            required
+            value={fullname}
+            onChange={(e) => setFullname(e.target.value)}
+            className="mt-1 w-full border border-ink/20 px-3 py-2"
+          />
+        </label>
+        <label className="text-sm">
+          Mobile
+          <input
+            type="mobile"
+            required
+            value={mobile}
+            onChange={(e) => setMobile(e.target.value)}
+            className="mt-1 w-full border border-ink/20 px-3 py-2"
+          />
+        </label>
         <label className="text-sm">
           Email
           <input

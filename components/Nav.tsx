@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient, getAccessToken } from '@/lib/auth';
 
-export function Nav({ businessName, base }: { businessName: string; base: string }) {
+export function Nav({ businessName, base, isProvider }: { businessName: string; base: string, isProvider: boolean }) {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,12 +35,25 @@ export function Nav({ businessName, base }: { businessName: string; base: string
         <nav className="hidden items-center gap-8 text-[13px] font-medium tracking-wide sm:flex">
           {isLoggedIn === true && (
             <>
-              <Link 
-                href={`${base}/bookings`} 
-                className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-              >
-                My Bookings
-              </Link>
+              {isProvider ? (
+                <Link 
+                  href={`${base}/dashboard`} 
+                  className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                >
+                  Dashboard
+                </Link>
+              ) :(
+
+                <Link 
+                  href={`${base}/bookings`} 
+                  className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                >
+                  My Bookings
+                </Link>
+              )
+                
+              }
+              
               <button 
                 onClick={handleLogout} 
                 className="cursor-pointer text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"

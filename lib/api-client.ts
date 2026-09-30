@@ -91,10 +91,10 @@ export function createApiClient({ baseUrl, storage, onAuthExpired }: ApiClientOp
   }
 
   return {
-    async register(email: string, password: string) {
+    async register(email: string, password: string, mobile: string, fullname: string) {
       const tokens = await request<TokenPair>("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, mobile, fullname }),
       });
       await storage.setTokens(tokens);
       return tokens;

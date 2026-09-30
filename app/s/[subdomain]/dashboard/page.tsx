@@ -59,7 +59,6 @@ export default function DashboardOverview() {
   const { data: appointments = [], isLoading: loadingAppointments } = useAppointments(subdomain);
   const { data: providers = [], isLoading: loadingProviders } = useProviders(subdomain);
   const { data: services = [], isLoading: loadingServices } = useServices(subdomain);
-  console.log(user)
   const isVendor = user?.role.includes('vendor') ?? false;
   const isProvider = user?.providerId !== null && user?.providerId !== undefined;
 

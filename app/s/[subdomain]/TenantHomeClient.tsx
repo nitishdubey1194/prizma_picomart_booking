@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useAvailability } from '@/lib/queries';
+import { useAvailability, useCurrentUser } from '@/lib/queries';
 import { Nav } from '@/components/Nav';
 import { Hero } from '@/components/Hero';
 
@@ -77,7 +77,8 @@ export function TenantHomeClient({
 }: TenantHomeClientProps) {
   const { data: slots = [] } = useAvailability(subdomain, firstProviderId, today, serviceId);
   const nextSlotIso = slots[0]?.startTime ?? null;
-
+  const { data: user, isLoading: loadingUser } = useCurrentUser(subdomain);
+  const isProvider = user?.providerId !== null && user?.providerId !== undefined;
   return (
     <div className="relative min-h-screen bg-paper text-ink selection:bg-brass/20 selection:text-ink">
       {/* Top Announcement Strip */}
@@ -89,7 +90,9 @@ export function TenantHomeClient({
       )}
 
       {/* Navigation */}
-      <Nav businessName={businessName} base={base} />
+      {!loadingUser &&
+      <Nav businessName={businessName} base={base} isProvider={isProvider}/>
+      }
 
       <main className="relative">
         {/* Hero Section */}

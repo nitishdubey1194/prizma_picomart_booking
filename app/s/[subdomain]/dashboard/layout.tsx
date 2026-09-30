@@ -4,7 +4,7 @@ import { useParams, useRouter, usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useCurrentUser } from '@/lib/queries';
-
+import { authClient } from '@/lib/auth';
 function titleCase(slug: string) {
   return slug
     .split('-')
@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isVendor = user?.role?.includes('vendor') ?? false;
   const isProvider = user?.providerId !== null && user?.providerId !== undefined;
   const hasDashboardAccess = isVendor || isProvider;
-  console.log(hasDashboardAccess,'dsfdsfd', isVendor, isProvider, user)
+  
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
@@ -52,8 +52,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const businessName = titleCase(subdomain);
-
+  async function handleLogout() {
+    await authClient.logout();
+    router.push(base);
+  }
+    const businessName = titleCase(subdomain);
   return (
     <div className="min-h-screen bg-paper text-ink antialiased selection:bg-brass/20 selection:text-ink">
       {/* Top Application Shell Header */}
@@ -72,15 +75,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center gap-4">
-            <Link
-              href={base}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden items-center gap-1.5 text-xs text-ink/60 transition-colors hover:text-ink sm:inline-flex"
+            <button 
+              onClick={handleLogout} 
+              className="cursor-pointer text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
-              <span>View Live Storefront</span>
-              <span className="text-[10px]">↗</span>
-            </Link>
+              Sign out
+            </button>
 
             <span className="hidden h-4 w-px bg-ink/15 sm:block" />
 
