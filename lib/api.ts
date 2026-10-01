@@ -42,18 +42,20 @@ export type Provider = {
   userId?: string | null;
   isActive?: boolean;
   userLinkEmail?: string | null;
+  effectivePrice?: string | null;
+  effectiveDuration?: number | null;
 };
 
-export type Service = {
-  id: number;
-  name: string;
-  slug: string;
-  durationMinutes: number;
-  price: number | string;
-  bufferMinutes?: number;
-  description?: string | null;
-  isActive?: boolean;
-};
+// export type Service = {
+//   id: number;
+//   name: string;
+//   slug: string;
+//   durationMinutes: number;
+//   price: number | string;
+//   bufferMinutes?: number;
+//   description?: string | null;
+//   isActive?: boolean;
+// };
 
 export type AvailabilitySlot = {
   startTime: string; // ISO instant
@@ -111,6 +113,33 @@ export interface LinkProviderServicePayload {
   serviceId: number | string;
   customDurationMinutes?: number | null;
   customPrice?: number | string | null;
+}
+
+export interface Service {
+  id: number;
+  tenantId: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  durationMinutes: number;
+  price: string;
+  bufferMinutes: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServicesResponse {
+  services: Service[];
+}
+
+export interface CreateServiceInput {
+  name: string;
+  slug: string;
+  durationMinutes: number;
+  price: number; 
+  bufferMinutes?: number;
+  description?: string;
 }
 // ---------------------------------------------------------------------------
 // Base Fetch Wrapper
@@ -423,6 +452,20 @@ export function deleteProvider(
     method: 'DELETE',
     cache: 'no-store',
     headers: { Authorization: `Bearer ${accessToken}` },
+  });
+}
+
+export function enableProvider(
+  tenantSlug: string,
+  accessToken: string,
+  providerId: number,
+  isActive: boolean
+) {
+  return apiFetch<void>(`/api/providers/${providerId}`, tenantSlug, {
+    method: 'PATCH',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ isActive }),
   });
 }
 

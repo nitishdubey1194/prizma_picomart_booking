@@ -5,10 +5,19 @@ import { getProviders, getServices, getAvailability, bookAppointment, updateAppo
   linkProviderToService,
   unlinkProviderToService,
   LinkProviderServicePayload,
+  enableProvider,
   } from '@/lib/api';
 import { getAccessToken } from './auth';
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export { WEEKDAY_NAMES };
+
+export interface AssignServicePayload {
+  serviceId: number;
+  priceOverride?: string | null;
+  durationOverrideMinutes?: number | null;
+  isActive?: boolean;
+}
+
 export type CurrentUser = {
   id: string;
   email: string;
@@ -131,6 +140,24 @@ export function useDeleteProvider(tenantSlug: string) {
       const token = await getAccessToken();
       if (!token) throw new Error('Not signed in.');
       return deleteProvider(tenantSlug, token, providerId);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.providers(tenantSlug) }),
+  });
+}
+
+export function useEnableProvider(tenantSlug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      providerId,
+      isActive,
+    }: {
+      providerId: number;
+      isActive: boolean;
+    }) => {
+      const token = await getAccessToken();
+      if (!token) throw new Error('Not signed in.');
+      return enableProvider(tenantSlug, token, providerId, isActive);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.providers(tenantSlug) }),
   });
@@ -305,6 +332,27 @@ export function useUnlinkServiceFromProvider(tenantSlug: string, accessToken: st
       });
       queryClient.invalidateQueries({
         queryKey: ['providers', tenantSlug],
+      });
+    },
+  });
+}
+
+
+export function useAssignProviderService(subdomain: string, providerId: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: AssignServicePayload) => {
+      const token = await getAccessToken();
+      if (!token) throw new Error('Not signed in.');
+      return linkProviderToService(subdomain, token, providerId, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['provider-services', subdomain, providerId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['providers', subdomain],
       });
     },
   });

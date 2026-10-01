@@ -1,11 +1,11 @@
+// app/s/[subdomain]/book/page.tsx
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
-import { queryKeys } from '@/lib/queries';
-import { getProviders, getServices } from '@/lib/api';
 import { Nav } from '@/components/Nav';
 import { BookingFlow } from './BookingFlow';
+import { Suspense } from 'react';
 
 export const metadata: Metadata = {
   title: 'Book an Appointment — Picomart Engine',
@@ -21,16 +21,19 @@ function titleCase(slug: string) {
 
 export default async function BookPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ subdomain: string }>;
+  searchParams: Promise<{ providerId?: string; serviceId?: string }>;
 }) {
   const { subdomain } = await params;
+  const { providerId, serviceId } = await searchParams;
+
   const isDev = process.env.NODE_ENV === 'development';
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? (isDev ? 'localhost:3000' : 'picomart.in');
   const base = `${isDev ? 'http' : 'https'}://${subdomain}.${rootDomain}`;
 
   const queryClient = getQueryClient();
-
   const businessName = titleCase(subdomain);
 
   return (
@@ -38,7 +41,6 @@ export default async function BookPage({
       <div className="min-h-screen bg-paper text-ink antialiased selection:bg-brass/20 selection:text-ink">
         <Nav businessName={businessName} base={base} isProvider={false}/>
 
-        {/* Breadcrumb / Context Tracker Header */}
         <header className="border-b border-ink/10 bg-white/40 backdrop-blur-xs">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6 sm:py-5">
             <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-ink/50 sm:text-sm">
@@ -64,7 +66,6 @@ export default async function BookPage({
           </div>
         </header>
 
-        {/* Main Application Container */}
         <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-14 lg:py-16">
           <header className="mb-10 max-w-2xl sm:mb-12">
             <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-ink/70">
@@ -80,7 +81,9 @@ export default async function BookPage({
             </p>
           </header>
 
-          <BookingFlow tenantSlug={subdomain} />
+          <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-ink/5" />}>
+            <BookingFlow tenantSlug={subdomain} />
+          </Suspense>
         </main>
 
         <footer className="border-t border-ink/10 bg-paper py-10 text-xs text-ink/60">

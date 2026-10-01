@@ -6,12 +6,21 @@ import {
   useProviders,
   useCreateProvider,
   useDeleteProvider,
+  useEnableProvider,
   useServices,
   useProviderAssignedServices,
 } from '@/lib/queries';
 import { Provider, Service } from '@/lib/api';
 import ProviderServicesModal from '@/components/ProviderServicesModal';
 import LinkAccountModal from '@/components/LinkAccountModal';
+
+export const PROVIDER_CATEGORIES = [
+  { value: 'barber-shop', label: 'Barber Shop' },
+  { value: 'car-wash', label: 'Car Wash' },
+  { value: 'salon-spa', label: 'Salon & Spa' },
+  { value: 'auto-detailing', label: 'Auto Detailing' },
+  { value: 'health-wellness', label: 'Health & Wellness' },
+] as const;
 
 export default function ProvidersPage() {
   const { subdomain } = useParams<{ subdomain: string }>();
@@ -21,11 +30,13 @@ export default function ProvidersPage() {
   const { data: allServices = [], isLoading: isLoadingServices } = useServices(subdomain);
   const createProvider = useCreateProvider(subdomain);
   const deleteProvider = useDeleteProvider(subdomain);
+  
+  const enableProvider = useEnableProvider(subdomain);
 
   // Form states
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState<string>(PROVIDER_CATEGORIES[0].value);
   const [error, setError] = useState<string | null>(null);
 
   // Modals
@@ -41,7 +52,7 @@ export default function ProvidersPage() {
         onSuccess: () => {
           setName('');
           setSlug('');
-          setCategory('');
+          setCategory(PROVIDER_CATEGORIES[0].value);
         },
         onError: (err: unknown) => {
           if (err instanceof Error) {
@@ -63,6 +74,7 @@ export default function ProvidersPage() {
       </div>
     );
   }
+
   return (
     <div className="max-w-5xl">
       <div className="mb-6 flex flex-col gap-1 border-b border-ink/10 pb-4">
@@ -87,6 +99,10 @@ export default function ProvidersPage() {
               onManageAccount={() => setSelectedProviderForAccount(p)}
               onManageServices={() => setSelectedProviderForServices(p)}
               onDelete={() => deleteProvider.mutate(p.id)}
+              onEnable={() => enableProvider.mutate({
+                providerId: p.id,
+                isActive: !(p.isActive ?? true),
+              })}
             />
           ))}
         </ul>
@@ -100,7 +116,7 @@ export default function ProvidersPage() {
             Full Name
             <input
               required
-              placeholder="Dr. Jane Smith"
+              placeholder="e.g. Downtown Barber Co."
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
@@ -111,26 +127,42 @@ export default function ProvidersPage() {
               className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
             />
           </label>
+
           <label className="flex-1 min-w-[180px] text-xs font-medium uppercase tracking-wider text-ink/70">
             URL Slug
             <input
               required
-              placeholder="jane-smith"
+              placeholder="downtown-barber"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
               className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
             />
           </label>
+
+          {/* Category Dropdown */}
           <label className="flex-1 min-w-[180px] text-xs font-medium uppercase tracking-wider text-ink/70">
             Specialty / Category
-            <input
-              required
-              placeholder="Dermatology, Barber, Massage"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="mt-1.5 block w-full rounded border border-ink/20 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink/30 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800"
-            />
+            <div className="relative mt-1.5">
+              <select
+                required
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="block w-full appearance-none rounded border border-ink/20 bg-white px-3 py-2 text-sm font-normal text-ink focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass dark:bg-zinc-800 cursor-pointer"
+              >
+                {PROVIDER_CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value} className="bg-white text-ink dark:bg-zinc-800 dark:text-zinc-100">
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-ink/40">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </label>
+
           <button
             type="submit"
             disabled={createProvider.isPending}
@@ -156,7 +188,6 @@ export default function ProvidersPage() {
       )}
 
       {/* Link Account Modal */}
-
       {selectedProviderForAccount && (
         <LinkAccountModal
           isOpen={true}
@@ -165,7 +196,6 @@ export default function ProvidersPage() {
           onClose={() => setSelectedProviderForAccount(null)}
           onRefresh={async () => {
             const { data } = await refetchProviders();
-            console.log(data,'sdfd')
             if (data) {
               const updated = data.find((p) => p.id === selectedProviderForAccount.id);
               if (updated) setSelectedProviderForAccount(updated);
@@ -188,6 +218,7 @@ interface ProviderRowItemProps {
   onManageAccount: () => void;
   onManageServices: () => void;
   onDelete: () => void;
+  onEnable: () => void;
 }
 
 function ProviderRowItem({
@@ -197,9 +228,13 @@ function ProviderRowItem({
   onManageAccount,
   onManageServices,
   onDelete,
+  onEnable
 }: ProviderRowItemProps) {
   const { data: assigned = [], isLoading } = useProviderAssignedServices(tenantSlug, provider.id);
   const displayEmail = provider.userLinkEmail || (provider.userId?.includes('@') ? provider.userId : null);
+
+  const categoryLabel =
+    PROVIDER_CATEGORIES.find((c) => c.value === provider.category)?.label || provider.category;
 
   return (
     <li className="py-4">
@@ -208,7 +243,7 @@ function ProviderRowItem({
           <div className="flex items-center gap-2">
             <span className="font-medium text-ink">{provider.name}</span>
             <span className="rounded bg-ink/5 px-2 py-0.5 text-xs text-ink/60">
-              {provider.category}
+              {categoryLabel}
             </span>
           </div>
           <div className="mt-1 flex items-center gap-3 text-xs text-ink/50">
@@ -245,11 +280,15 @@ function ProviderRowItem({
 
           <button
             type="button"
-            onClick={onDelete}
+            onClick={provider.isActive ? onDelete : onEnable}
             disabled={isDeleting}
-            className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+            className={`rounded border px-3 py-1.5 text-xs font-medium transition-colors ${
+              provider.isActive
+                ? 'border-red-300 bg-red-50/60 text-red-800 hover:border-red-400 dark:border-red-800/40 dark:bg-red-950/40 dark:text-red-300'
+                : 'border-green-300 bg-green-50/60 text-green-800 hover:border-green-400 dark:border-green-800/40 dark:bg-green-950/40 dark:text-green-300'
+            }`}
           >
-            Remove
+            {provider.isActive ? 'Disable' : 'Enable'}
           </button>
         </div>
       </div>
