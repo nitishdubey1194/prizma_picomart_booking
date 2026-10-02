@@ -86,6 +86,7 @@ export type AppointmentWithDetails = {
   providerName?: string;
   serviceName?: string;
   customerEmail?: string;
+  customerMobile?: string;
 };
 
 export interface BookAppointmentPayload {
@@ -140,6 +141,15 @@ export interface CreateServiceInput {
   price: number; 
   bufferMinutes?: number;
   description?: string;
+}
+
+export interface CreateServiceWithAutoAssignInput {
+  name: string;
+  slug: string;
+  price: number;
+  durationMinutes: number;
+  description?: string;
+  providerId?: number | string;
 }
 // ---------------------------------------------------------------------------
 // Base Fetch Wrapper
@@ -705,4 +715,25 @@ export async function getProviderAssignedServices(
     }
   }
   return [];
+}
+
+export async function createServiceWithAutoAssign(
+  tenantSlug: string,
+  token: string,
+  input: CreateServiceWithAutoAssignInput
+): Promise<Service> {
+  return apiFetch<Service>('/api/services', tenantSlug, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      name: input.name,
+      slug: input.slug,
+      price: input.price,
+      durationMinutes: input.durationMinutes,
+      description: input.description?.trim() || undefined,
+      providerId: input.providerId,
+    }),
+  });
 }

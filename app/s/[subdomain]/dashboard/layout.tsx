@@ -1,34 +1,44 @@
-'use client';
+"use client";
 
-import { useParams, useRouter, usePathname } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
-import Link from 'next/link';
-import { useCurrentUser } from '@/lib/queries';
-import { authClient } from '@/lib/auth';
+import { useParams, useRouter, usePathname } from "next/navigation";
+import { useEffect, useMemo } from "react";
+import Link from "next/link";
+import { useCurrentUser } from "@/lib/queries";
+import { authClient } from "@/lib/auth";
+import { LogOut } from "lucide-react";
 function titleCase(slug: string) {
   return slug
-    .split('-')
+    .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+    .join(" ");
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const { subdomain } = useParams<{ subdomain: string }>();
-  const isDev = process.env.NODE_ENV === 'development';
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? (isDev ? 'localhost:3000' : 'picomart.in');
-  const base = `${isDev ? 'http' : 'https'}://${subdomain}.${rootDomain}`;
+  const isDev = process.env.NODE_ENV === "development";
+  const rootDomain =
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN ??
+    (isDev ? "localhost:3000" : "picomart.in");
+  const base = `${isDev ? "http" : "https"}://${subdomain}.${rootDomain}`;
 
   const { data: user, isLoading } = useCurrentUser(subdomain);
-  
-  const isVendor = user?.role?.includes('vendor') ?? false;
-  const isProvider = user?.providerId !== null && user?.providerId !== undefined;
+
+  const isVendor = user?.role?.includes("vendor") ?? false;
+  const isProvider =
+    user?.providerId !== null && user?.providerId !== undefined;
   const hasDashboardAccess = isVendor || isProvider;
-  
+
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.push(`${base}/login?returnTo=${encodeURIComponent(`${base}/dashboard`)}`);
+      router.push(
+        `${base}/login?returnTo=${encodeURIComponent(`${base}/dashboard`)}`,
+      );
       return;
     }
     if (!hasDashboardAccess) {
@@ -56,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     await authClient.logout();
     router.push(base);
   }
-    const businessName = titleCase(subdomain);
+  const businessName = titleCase(subdomain);
   return (
     <div className="min-h-screen bg-paper text-ink antialiased selection:bg-brass/20 selection:text-ink">
       {/* Top Application Shell Header */}
@@ -64,7 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
-              href={`${base}/dashboard`}
+              href={`${base}`}
               className="font-display text-lg font-medium tracking-tight text-ink transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ink"
             >
               {businessName}
@@ -75,26 +85,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="flex items-center gap-4">
-            <button 
-              onClick={handleLogout} 
-              className="cursor-pointer text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            >
-              Sign out
-            </button>
-
-            <span className="hidden h-4 w-px bg-ink/15 sm:block" />
-
             {/* User Profile Badge */}
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ink/5 font-mono text-xs font-semibold uppercase text-ink ring-1 ring-ink/10">
-                {user.email ? user.email.charAt(0) : 'U'}
+                {user.email ? user.email.charAt(0) : "U"}
               </div>
               <div className="hidden text-left sm:block">
                 <p className="max-w-[130px] truncate text-xs font-medium text-ink">
                   {user.email}
                 </p>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-brass">
-                  {isVendor ? 'Studio Vendor' : 'Specialist'}
+                  <button
+                  onClick={handleLogout}
+                  className="cursor-pointer rounded-md  text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-2 focus-visible:outline-red-500 flex items-center gap-1.5"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </button>
                 </p>
               </div>
             </div>
@@ -130,21 +137,22 @@ function DashboardNav({
 
   const navLinks = useMemo(() => {
     const links: NavItem[] = [
-      { label: 'Overview', href: `${base}/dashboard`, exact: true },
+      { label: "Overview", href: `${base}/dashboard`, exact: true },
     ];
 
     if (isProvider) {
       links.push(
-        { label: 'My Bookings', href: `${base}/dashboard/my-bookings` },
-        { label: 'My Availability', href: `${base}/dashboard/my-availability` }
+        { label: "My Bookings", href: `${base}/dashboard/my-bookings` },
+        { label: "My Availability", href: `${base}/dashboard/my-availability` },
+        { label: "Service Ledger", href: `${base}/dashboard/services` },
       );
     }
 
     if (isVendor) {
       links.push(
-        { label: 'All Appointments', href: `${base}/dashboard/appointments` },
-        { label: 'Team & Providers', href: `${base}/dashboard/providers` },
-        { label: 'Service Ledger', href: `${base}/dashboard/services` }
+        { label: "All Appointments", href: `${base}/dashboard/appointments` },
+        { label: "Team & Providers", href: `${base}/dashboard/providers` },
+        { label: "Service Ledger", href: `${base}/dashboard/services` },
       );
     }
 
@@ -158,7 +166,7 @@ function DashboardNav({
     >
       {navLinks.map((item) => {
         // Robust active state calculation across local subdomains and production bases
-        const itemPath = new URL(item.href, 'http://dummy.com').pathname;
+        const itemPath = new URL(item.href, "http://dummy.com").pathname;
         const isActive = item.exact
           ? pathname === itemPath || pathname === `${itemPath}/`
           : pathname.startsWith(itemPath);
@@ -169,12 +177,15 @@ function DashboardNav({
             href={item.href}
             className={`group relative flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-medium tracking-wide transition-all ${
               isActive
-                ? 'bg-ink text-paper shadow-xs ring-1 ring-ink'
-                : 'text-ink/65 hover:bg-ink/5 hover:text-ink'
+                ? "bg-ink text-paper shadow-xs ring-1 ring-ink"
+                : "text-ink/65 hover:bg-ink/5 hover:text-ink"
             }`}
           >
             {isActive && (
-              <span className="h-1.5 w-1.5 rounded-full bg-brass" aria-hidden="true" />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-brass"
+                aria-hidden="true"
+              />
             )}
             <span>{item.label}</span>
           </Link>

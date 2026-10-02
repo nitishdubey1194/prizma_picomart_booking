@@ -102,7 +102,7 @@ export default function MyBookingsPage() {
 
   return (
     <div className="min-h-screen bg-paper text-ink antialiased selection:bg-brass/20 selection:text-ink">
-      <Nav businessName={businessName} base={base} isProvider={false}/>
+      <Nav businessName={businessName} base={base} isProvider={false} isVendor={false}/>
 
       {/* Breadcrumb Header */}
       <header className="border-b border-ink/10 bg-white/40 backdrop-blur-xs">

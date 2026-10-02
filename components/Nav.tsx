@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient, getAccessToken } from '@/lib/auth';
 
-export function Nav({ businessName, base, isProvider }: { businessName: string; base: string, isProvider: boolean }) {
+export function Nav({ businessName, base, isProvider, isVendor }: { businessName: string; base: string, isProvider: boolean, isVendor: boolean }) {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,7 +35,7 @@ export function Nav({ businessName, base, isProvider }: { businessName: string; 
         <nav className="hidden items-center gap-8 text-[13px] font-medium tracking-wide sm:flex">
           {isLoggedIn === true && (
             <>
-              {isProvider ? (
+              {(isProvider || isVendor) ? (
                 <Link 
                   href={`${base}/dashboard`} 
                   className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"

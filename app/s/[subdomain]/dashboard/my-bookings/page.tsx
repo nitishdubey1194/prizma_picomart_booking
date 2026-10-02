@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useAppointments, useUpdateAppointmentStatus, useCurrentUser } from '@/lib/queries';
 import type { AppointmentWithDetails } from '@/lib/api';
+import { Mail, Phone } from 'lucide-react';
 
 interface StatusConfig {
   label: string;
@@ -327,24 +328,29 @@ export default function MyBookingsDashboardPage() {
                     </div>
 
                     {/* Email, Time & ID details */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink/65">
-                      <span className="font-medium text-ink">
-                        {startDate.toLocaleTimeString('en-IN', {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
-                      </span>
-
-                      <span className="text-ink/25">•</span>
-
-                      <a
-                        href={`mailto:${a.customerEmail}`}
-                        className="transition-colors hover:text-ink hover:underline"
-                      >
-                        {a.customerEmail}
-                      </a>
-                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink/60">
+  <span className="font-medium text-ink">
+    {startDate.toLocaleTimeString("en-IN", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true
+    })}
+  </span>
+  <a
+    href={`mailto:${a.customerEmail}`}
+    className="flex items-center gap-1.5 transition-colors hover:text-ink"
+  >
+    <Mail className="h-3.5 w-3.5 text-ink/40" />
+    <span>{a.customerEmail}</span>
+  </a>
+  <a
+    href={`tel:${a.customerMobile}`}
+    className="flex items-center gap-1.5 transition-colors hover:text-ink"
+  >
+    <Phone className="h-3.5 w-3.5 text-ink/40" />
+    <span>{a.customerMobile}</span>
+  </a>
+</div>
 
                     {/* Customer Notes Quote */}
                     {a.customerNotes && (

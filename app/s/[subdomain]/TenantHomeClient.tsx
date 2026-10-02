@@ -79,6 +79,7 @@ export function TenantHomeClient({
   const nextSlotIso = slots[0]?.startTime ?? null;
   const { data: user, isLoading: loadingUser } = useCurrentUser(subdomain);
   const isProvider = user?.providerId !== null && user?.providerId !== undefined;
+  const isVendor = user?.role.includes('vendor') ?? false;
   return (
     <div className="relative min-h-screen bg-paper text-ink selection:bg-brass/20 selection:text-ink">
       {/* Top Announcement Strip */}
@@ -91,7 +92,7 @@ export function TenantHomeClient({
 
       {/* Navigation */}
       {!loadingUser &&
-      <Nav businessName={businessName} base={base} isProvider={isProvider}/>
+      <Nav businessName={businessName} base={base} isProvider={isProvider} isVendor={isVendor}/>
       }
 
       <main className="relative">

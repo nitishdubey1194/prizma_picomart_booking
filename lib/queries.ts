@@ -6,6 +6,8 @@ import { getProviders, getServices, getAvailability, bookAppointment, updateAppo
   unlinkProviderToService,
   LinkProviderServicePayload,
   enableProvider,
+  createServiceWithAutoAssign,
+  type CreateServiceWithAutoAssignInput,
   } from '@/lib/api';
 import { getAccessToken } from './auth';
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -21,6 +23,7 @@ export interface AssignServicePayload {
 export type CurrentUser = {
   id: string;
   email: string;
+  mobile: string;
   role: string[];
   providerId: number | null;
 };
@@ -31,10 +34,15 @@ export const queryKeys = {
     ['availability', tenantSlug, providerId, date] as const,
 };
 
-export function useProviders(tenantSlug: string, serviceId?: number | string | null) {
+export function useProviders(
+  tenantSlug: string,
+  serviceId?: number | string | null,
+  enabled = true
+) {
   return useQuery({
     queryKey: ["providers", tenantSlug, serviceId ?? "all"],
     queryFn: () => getProviders(tenantSlug,serviceId ?? "all"),
+    enabled,
   });
 }
 
@@ -357,3 +365,36 @@ export function useAssignProviderService(subdomain: string, providerId: number) 
     },
   });
 }
+
+export function useCreateServiceWithAutoAssign(subdomain: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateServiceWithAutoAssignInput) => {
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      return await createServiceWithAutoAssign(subdomain, token, input);
+    },
+    onSuccess: (_, variables) => {
+      // 1. Invalidate global service catalog
+      queryClient.invalidateQueries({
+        queryKey: ['services', subdomain],
+      });
+
+      // 2. Invalidate provider-specific assigned services
+      if (variables.providerId) {
+        queryClient.invalidateQueries({
+          queryKey: ['provider-assigned-services', subdomain, Number(variables.providerId)],
+        });
+      }
+
+      // 3. Invalidate provider directory
+      queryClient.invalidateQueries({
+        queryKey: ['providers', subdomain],
+      });
+    },
+  });
+}
+

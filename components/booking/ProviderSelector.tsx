@@ -1,6 +1,7 @@
 // components/booking/ProviderSelector.tsx
 "use client";
 
+import { Check } from "lucide-react";
 import type { Provider } from "@/lib/api";
 
 interface Props {
@@ -20,9 +21,21 @@ export function ProviderSelector({
 }: Props) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+      <div className="space-y-2 pt-1">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 animate-pulse rounded-2xl bg-ink/5" />
+          <div
+            key={i}
+            className="flex h-16 animate-pulse items-center justify-between rounded-xl bg-zinc-100/60 px-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-zinc-200" />
+              <div className="space-y-1.5">
+                <div className="h-4 w-32 rounded bg-zinc-200" />
+                <div className="h-3 w-20 rounded bg-zinc-200/50" />
+              </div>
+            </div>
+            <div className="h-4 w-4 rounded-full bg-zinc-200" />
+          </div>
         ))}
       </div>
     );
@@ -30,57 +43,82 @@ export function ProviderSelector({
 
   if (!hasSelectedService) {
     return (
-      <div className="rounded-2xl border border-dashed border-ink/15 bg-white/30 p-6 text-center">
-        <p className="text-xs text-ink/50">Choose a service above to view specialists and rates.</p>
+      <div className="rounded-xl bg-zinc-50 py-8 px-4 text-center">
+        <p className="text-xs text-zinc-500">
+          Choose a service above to view specialists and rates.
+        </p>
+      </div>
+    );
+  }
+
+  if (providers.length === 0) {
+    return (
+      <div className="rounded-xl bg-zinc-50 py-8 px-4 text-center">
+        <p className="text-xs text-zinc-500">
+          No specialists available for the selected service.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1">
+    <div className="space-y-1.5 max-h-[360px] overflow-y-auto pr-0.5">
       {providers.map((p) => {
         const isSelected = selectedProviderId === p.id;
-        const displayPrice = p.effectivePrice ? `₹${Number(p.effectivePrice).toFixed(2)}` : null;
 
         return (
-          <button
+          <div
             key={p.id}
-            type="button"
             onClick={() => onSelectProvider(p)}
-            className={`flex items-center justify-between rounded-xl border p-3 text-left transition-all ${
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelectProvider(p);
+              }
+            }}
+            className={`group flex items-center justify-between rounded-xl px-4 py-3 cursor-pointer select-none transition-colors duration-150 ${
               isSelected
-                ? "border-ink bg-white shadow-sm ring-1 ring-ink"
-                : "border-ink/10 bg-white/60 hover:border-ink/25 hover:bg-white"
+                ? "bg-zinc-100 text-zinc-900 font-medium"
+                : "bg-transparent hover:bg-zinc-50 text-zinc-800"
             }`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            {/* Left Column: Avatar + Specialist Info */}
+            <div className="flex items-center gap-3 min-w-0 pr-3">
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                  isSelected ? "bg-ink text-paper" : "bg-ink/5 text-ink/70"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  isSelected
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-200/80 text-zinc-700 group-hover:bg-zinc-200"
                 }`}
               >
-                {p.name.charAt(0)}
+                {p.name.charAt(0).toUpperCase()}
               </div>
+
               <div className="min-w-0 truncate">
-                <p className="truncate text-xs sm:text-sm font-medium text-ink">{p.name}</p>
-                <p className="truncate text-[11px] text-ink/50">{p.title || "Specialist"}</p>
+                <p className="truncate text-sm leading-snug font-medium text-zinc-900">
+                  {p.name}
+                </p>
+                <p className="truncate text-xs text-zinc-500 font-normal">
+                  {p.title || "Specialist"}
+                </p>
               </div>
             </div>
 
-            {/* Specialist-Specific Price Tag */}
-            {/* {displayPrice && (
-              <div className="shrink-0 text-right pl-2">
-                <span className="text-xs font-bold text-ink">
-                  {displayPrice}
-                </span>
-                {p.effectiveDuration && (
-                  <p className="text-[10px] text-ink/40">
-                    {p.effectiveDuration}m
-                  </p>
-                )}
+            {/* Right Column: Check Indicator */}
+            <div className="shrink-0 pl-2">
+              <div
+                className={`flex h-4 w-4 items-center justify-center rounded-full transition-colors ${
+                  isSelected
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-200/80 text-transparent group-hover:bg-zinc-300"
+                }`}
+              >
+                <Check className="h-2.5 w-2.5 stroke-[3]" />
               </div>
-            )} */}
-          </button>
+            </div>
+          </div>
         );
       })}
     </div>
