@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCurrentUser } from "@/lib/queries";
 import { authClient } from "@/lib/auth";
 import { LogOut } from "lucide-react";
+import { PermissionDenied } from "@/components/PermissionDenied";
 function titleCase(slug: string) {
   return slug
     .split("-")
@@ -33,21 +34,19 @@ export default function DashboardLayout({
     user?.providerId !== null && user?.providerId !== undefined;
   const hasDashboardAccess = isVendor || isProvider;
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (!user) {
-      router.push(
-        `${base}/login?returnTo=${encodeURIComponent(`${base}/dashboard`)}`,
-      );
-      return;
-    }
-    if (!hasDashboardAccess) {
-      router.push(base);
-    }
-  }, [isLoading, user, hasDashboardAccess, router, base]);
-
+  // useEffect(() => {
+  //   if (isLoading) return;
+  //   if (!user) {
+  //     router.push(
+  //       `${base}/login?returnTo=${encodeURIComponent(`${base}/dashboard`)}`,
+  //     );
+  //     return;
+  //   }
+    
+  // }, [isLoading, user, hasDashboardAccess, router, base]);
+  
   // Loading skeleton screen to eliminate harsh jumps
-  if (isLoading || !user || !hasDashboardAccess) {
+  if (isLoading || !user) {
     return (
       <div className="min-h-screen bg-paper text-ink antialiased">
         <header className="h-16 border-b border-ink/10 bg-white/40" />
@@ -61,12 +60,23 @@ export default function DashboardLayout({
       </div>
     );
   }
+  if(!hasDashboardAccess) {
+    return <PermissionDenied 
+    type="role_mismatch"
+    currentIdentity={user?.email}
+    currentRole={user?.role ?? 'Specialist / Practitioner'}
+    requiredRole="Store Owner"
+    fallbackHref={`/`}
+    fallbackLabel="Return to Homepage"
+    />;
+  }
 
   async function handleLogout() {
     await authClient.logout();
     router.push(base);
   }
   const businessName = titleCase(subdomain);
+  
   return (
     <div className="min-h-screen bg-paper text-ink antialiased selection:bg-brass/20 selection:text-ink">
       {/* Top Application Shell Header */}
@@ -158,6 +168,8 @@ function DashboardNav({
 
     return links;
   }, [base, isVendor, isProvider]);
+
+  
 
   return (
     <nav

@@ -11,7 +11,22 @@ import {
   useCurrentUser,
 } from '@/lib/queries';
 import type { Service, ServicesResponse, Provider } from '@/lib/api';
-import { IndianRupee, Plus, X, Trash2, Clock, Check, UserCheck, ShieldAlert } from 'lucide-react';
+import {
+  IndianRupee,
+  Plus,
+  X,
+  Trash2,
+  Clock,
+  Check,
+  UserCheck,
+  ShieldCheck,
+  Scissors,
+  Sparkles,
+  Link as LinkIcon,
+  AlertCircle,
+  Loader2,
+  Layers,
+} from 'lucide-react';
 
 interface AssignedServiceRawItem {
   id?: number | string;
@@ -29,7 +44,7 @@ export default function ServicesDashboardPage() {
   const params = useParams<{ subdomain: string }>();
   const subdomain = params?.subdomain ?? '';
 
-  // 1. Actor Role & Provider Identity
+  // 1. Role Context
   const { data: user, isLoading: loadingUser } = useCurrentUser(subdomain);
   const isVendor = user?.role
     ? Array.isArray(user.role)
@@ -39,7 +54,7 @@ export default function ServicesDashboardPage() {
   const activeProviderId: number | null = user?.providerId ? Number(user.providerId) : null;
   const isProvider = Boolean(activeProviderId) && !isVendor;
 
-  // 2. Queries
+  // 2. Data Queries
   const { data: rawServices, isLoading: loadingServices } = useServices(subdomain);
   const { data: rawProviders } = useProviders(subdomain, 'all', true);
   const {
@@ -56,7 +71,7 @@ export default function ServicesDashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // 3. Normalize Catalog Services
+  // 3. Normalize Data
   const allCatalogServices: Service[] = useMemo(() => {
     if (!rawServices) return [];
     if (Array.isArray(rawServices)) return rawServices;
@@ -83,7 +98,7 @@ export default function ServicesDashboardPage() {
     return providers.find((p) => p.id === activeProviderId) ?? null;
   }, [providers, activeProviderId]);
 
-  // 4. Form State (Derived directly without useEffect)
+  // 4. Form State Overrides
   const [selectedSlugOverride, setSelectedSlugOverride] = useState<string | null>(null);
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
   const [durationOverride, setDurationOverride] = useState<number | null>(null);
@@ -102,7 +117,6 @@ export default function ServicesDashboardPage() {
   const activeBuffer = bufferOverride ?? (selectedService ? (selectedService.bufferMinutes ?? 0) : 0);
   const activeDescription = descriptionOverride ?? (selectedService?.description ?? '');
 
-  // Reset local edit overrides when dropdown switches
   function handleSelectPackageChange(e: ChangeEvent<HTMLSelectElement>): void {
     setSelectedSlugOverride(e.target.value);
     setPriceOverride(null);
@@ -152,7 +166,6 @@ export default function ServicesDashboardPage() {
     return map;
   }, [rawAssignedServices]);
 
-  // Displayed Services Filter
   const displayedServices: Service[] = useMemo(() => {
     if (isVendor) {
       return allCatalogServices;
@@ -258,161 +271,172 @@ export default function ServicesDashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-48 items-center justify-center">
-        <p className="text-sm tracking-wide text-zinc-500 animate-pulse">Loading service catalog…</p>
+      <div className="mx-auto max-w-7xl space-y-4">
+        <div className="h-28 w-full animate-pulse rounded-3xl bg-stone-200/50" />
+        <div className="h-32 w-full animate-pulse rounded-3xl bg-stone-200/50" />
+        <div className="h-32 w-full animate-pulse rounded-3xl bg-stone-200/50" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl">
-      {/* Role Context Bar */}
-      <div className="mb-6 flex items-center justify-between rounded-xl border border-zinc-200/80 bg-zinc-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/40">
-        <div className="flex items-center gap-2.5">
-          {isVendor ? (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
-              <ShieldAlert className="h-4 w-4" />
-            </div>
-          ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white">
-              <UserCheck className="h-4 w-4" />
-            </div>
-          )}
+    <div className="mx-auto max-w-7xl space-y-4">
+      {/* 1. Header Card with Role Capsule & Actions */}
+      <header className="rounded-3xl border border-stone-200/80 bg-[#FAF8F5] p-5 shadow-xs sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-              {isVendor ? 'Store Owner (Vendor Mode)' : `Specialist Practitioner (${currentProvider?.name ?? 'Provider Mode'})`}
-            </p>
-            <p className="text-[11px] text-zinc-500">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-stone-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-700">
+                {isVendor ? 'Studio Master' : `Chair #${activeProviderId}`}
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-600">
+                {isVendor ? (
+                  <>
+                    <ShieldCheck className="h-3.5 w-3.5 text-stone-700" />
+                    Storefront Catalog
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Specialist Schedule
+                  </>
+                )}
+              </span>
+            </div>
+
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
+              {isVendor ? 'Services & Offerings' : 'My Offered Services'}
+            </h1>
+            <p className="mt-0.5 text-xs text-stone-500">
               {isVendor
-                ? 'Showing all catalog services across the store.'
-                : 'Showing strictly services assigned to your schedule. New services created here are auto-assigned to you.'}
+                ? 'Manage service menu, pricing rates, and booking durations across all stations.'
+                : 'Configure treatments and services available for client bookings on your chair.'}
             </p>
+          </div>
+
+          {/* Action Trigger */}
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setIsAddingNew((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-stone-800 active:scale-[0.98] transition-all"
+            >
+              {isAddingNew ? (
+                <>
+                  <X className="h-3.5 w-3.5" />
+                  <span>Close Editor</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{isVendor ? 'New Service' : 'Add to My Chair'}</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-        {isProvider && (
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            Auto-Assign Active
-          </span>
-        )}
-      </div>
-
-      {/* Page Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-            {isVendor ? 'List of all services' : 'My Offered Services'}
-          </h1>
-          <p className="text-sm text-zinc-500">
-            {isVendor
-              ? 'Configure master service offerings, base parameters, and direct booking slugs.'
-              : 'Services currently available for booking under your profile.'}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsAddingNew((prev) => !prev)}
-          className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-        >
-          {isAddingNew ? (
-            <>
-              <X className="h-4 w-4" />
-              <span>Close Editor</span>
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4" />
-              <span>{isVendor ? 'Add New Service' : 'Create & Assign Service'}</span>
-            </>
+        {/* Stats Strip */}
+        <div className="mt-5 flex items-center justify-between border-t border-stone-200/70 pt-3 text-xs text-stone-500">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-stone-800">{displayedServices.length}</span>
+            <span>services available for reservation</span>
+          </div>
+          {isProvider && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-600/20">
+              Auto-Link Enabled
+            </span>
           )}
-        </button>
-      </div>
+        </div>
+      </header>
 
-      {/* Expandable Service Configurator */}
+      {/* 2. Expandable In-Place Configurator */}
       {isAddingNew && (
-        <div className="mb-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-xs animate-in fade-in-50 duration-200 dark:border-zinc-800 dark:bg-zinc-900/60">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <section className="rounded-3xl border border-stone-200/90 bg-[#FAF8F5] p-5 shadow-xs animate-in fade-in-50 duration-200 sm:p-6">
+          <div className="flex flex-col gap-2 pb-4 border-b border-stone-200/70 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                {isVendor ? 'Configure Service from Catalog' : `Select or Update Service for ${currentProvider?.name ?? 'Your Schedule'}`}
+              <h2 className="text-sm font-bold text-stone-900">
+                {isVendor ? 'Configure Service Offering' : 'Assign Service to Your Chair'}
               </h2>
-              <span className="text-xs text-zinc-500">
+              <p className="text-[11px] text-stone-500">
                 {isVendor
-                  ? 'Pick an existing service from database or save a new one.'
-                  : 'Select an existing service from the database or create a brand new one to assign to yourself.'}
-              </span>
+                  ? 'Select an existing package or adjust pricing before publishing.'
+                  : 'Pick a service from the database or customize pricing for your chair.'}
+              </p>
             </div>
 
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-zinc-100 transition shadow-2xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              className="inline-flex items-center gap-1.5 self-start rounded-xl border border-stone-300 bg-white/80 px-3 py-1.5 text-xs font-semibold text-stone-800 shadow-2xs hover:bg-white transition"
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span>Create New Service Package</span>
+              <Sparkles className="h-3.5 w-3.5 text-[#9A7B56]" />
+              <span>Create Brand New Package</span>
             </button>
           </div>
 
-          <form onSubmit={handleCreateMain} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <form onSubmit={handleCreateMain} className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Select dropdown */}
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  Select Existing Service from Database
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Select Existing Service
                 </label>
-                <div className="relative mt-1.5">
-                  <select
-                    value={selectedSlug}
-                    onChange={handleSelectPackageChange}
-                    className="block w-full appearance-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 cursor-pointer"
-                  >
-                    {allCatalogServices.length === 0 ? (
-                      <option value="">No services in database yet (Create one below)</option>
-                    ) : (
-                      allCatalogServices.map((s) => (
-                        <option key={`db-${s.slug}`} value={s.slug}>
-                          {s.name} (₹{Number(s.price).toFixed(0)} - {s.durationMinutes}m)
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
+                <select
+                  value={selectedSlug}
+                  onChange={handleSelectPackageChange}
+                  className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden cursor-pointer"
+                >
+                  {allCatalogServices.length === 0 ? (
+                    <option value="">No services in database (Create one using button above)</option>
+                  ) : (
+                    allCatalogServices.map((s) => (
+                      <option key={`opt-${s.slug}`} value={s.slug}>
+                        {s.name} · ₹{Number(s.price).toFixed(0)} ({s.durationMinutes}m)
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
 
-              {/* Direct Booking Link Preview */}
+              {/* Direct Booking Path Preview */}
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  Direct Booking Path
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Direct Booking Endpoint
                 </label>
-                <div className="mt-1.5 flex items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800">
-                  <span className="text-zinc-400 font-mono">/book?service=</span>
-                  <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100 ml-1">{selectedSlug || 'none'}</span>
+                <div className="mt-1 flex items-center rounded-xl border border-stone-200 bg-white/70 px-3 py-2 text-xs font-mono text-stone-600 shadow-2xs overflow-hidden truncate">
+                  <span className="text-stone-400">/book?service=</span>
+                  <span className="font-bold text-stone-900 ml-0.5">{selectedSlug || 'none'}</span>
                   {isProvider && currentProvider?.slug && (
-                    <span className="font-mono text-emerald-600 ml-1">&provider={currentProvider.slug}</span>
+                    <span className="text-emerald-700 ml-0.5">&provider={currentProvider.slug}</span>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Price & Duration Overrides */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center">
-                  Base Price (<IndianRupee size={10} className="mx-0.5" />)
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Base Price (₹)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={activePrice}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setPriceOverride(Number(e.target.value))}
-                  className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    value={activePrice}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPriceOverride(Number(e.target.value))}
+                    className="block w-full rounded-xl border border-stone-200 bg-white pl-6 pr-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
+                  />
+                  <IndianRupee className="absolute left-2 top-2.5 h-3.5 w-3.5 text-stone-400" />
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  Duration (Minutes)
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Session Duration (Mins)
                 </label>
                 <input
                   type="number"
@@ -421,13 +445,13 @@ export default function ServicesDashboardPage() {
                   required
                   value={activeDuration}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setDurationOverride(Number(e.target.value))}
-                  className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  Buffer After (Minutes)
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  Buffer Window (Mins)
                 </label>
                 <input
                   type="number"
@@ -435,112 +459,125 @@ export default function ServicesDashboardPage() {
                   step="5"
                   value={activeBuffer}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setBufferOverride(Number(e.target.value))}
-                  className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
                 />
               </div>
             </div>
 
+            {/* Description */}
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                Description
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                Service Overview / Notes
               </label>
               <textarea
                 rows={2}
                 value={activeDescription}
                 onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setDescriptionOverride(e.target.value)}
-                className="mt-1.5 block w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="Included treatments, steps, or products..."
+                className="mt-1 block w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-800 shadow-2xs placeholder:text-stone-400 focus:border-stone-400 focus:outline-hidden"
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            {formError && (
+              <div className="flex items-center gap-1.5 text-xs text-rose-700">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-200/70">
               <button
                 type="button"
                 onClick={() => setIsAddingNew(false)}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                className="rounded-xl border border-stone-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 active:scale-[0.98] transition"
               >
                 Dismiss
               </button>
               <button
                 type="submit"
                 disabled={createService.isPending || !selectedSlug}
-                className="rounded-lg bg-zinc-900 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-stone-800 active:scale-[0.98] transition disabled:opacity-50"
               >
-                {createService.isPending ? 'Saving…' : isVendor ? 'Confirm & Enable Service' : 'Save & Assign to Me'}
+                {createService.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <span>{isVendor ? 'Enable in Catalog' : 'Assign to My Chair'}</span>
               </button>
             </div>
           </form>
-
-          {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
-        </div>
+        </section>
       )}
 
-      {/* Modal: Create Brand New Service in Database */}
+      {/* 3. Modal: Create Brand New Service Package */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-2xs p-4">
-          <div className="relative w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-2xs p-4 animate-in fade-in-50 duration-150">
+          <div className="relative w-full max-w-md rounded-3xl border border-stone-200/90 bg-[#FAF8F5] p-5 shadow-xl sm:p-6">
+            <div className="flex items-center justify-between border-b border-stone-200/70 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                  {isVendor ? 'New Catalog Service' : 'New Service for Your Profile'}
+                <h3 className="text-sm font-bold text-stone-900">
+                  {isVendor ? 'New Catalog Package' : 'New Service Package'}
                 </h3>
                 {isProvider && (
-                  <p className="text-[11px] text-emerald-600 font-medium">Will auto-assign to you upon save</p>
+                  <p className="text-[10px] font-semibold text-emerald-700">
+                    Will auto-link to Chair #{activeProviderId} upon save
+                  </p>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                className="rounded-lg p-1 text-stone-400 hover:bg-stone-200/60 hover:text-stone-700 transition"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveCustomPackage} className="mt-4 space-y-3">
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                   Service Name
                 </label>
                 <input
                   required
-                  placeholder="e.g. VIP Ceramic Coating or Hair Fade"
+                  placeholder="e.g. VIP Beard Sculpt & Facial"
                   value={customName}
                   onChange={handleCustomNameChange}
-                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
-                  Slug (Auto-generated)
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                  URL Slug (Auto-generated)
                 </label>
                 <input
                   required
-                  placeholder="vip-ceramic-coating"
+                  placeholder="vip-beard-sculpt"
                   value={customSlug}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomSlug(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-sm text-zinc-600 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-stone-100/60 px-3 py-2 font-mono text-xs text-stone-600 focus:border-stone-400 focus:outline-hidden"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center">
-                    Price (<IndianRupee size={10} className="mx-0.5" />)
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
+                    Price (₹)
                   </label>
-                  <input
-                    type="number"
-                    step="1"
-                    min="0"
-                    required
-                    value={customPrice}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomPrice(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                  />
+                  <div className="relative mt-1">
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      required
+                      value={customPrice}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomPrice(Number(e.target.value))}
+                      className="w-full rounded-xl border border-stone-200 bg-white pl-6 pr-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
+                    />
+                    <IndianRupee className="absolute left-2 top-2.5 h-3.5 w-3.5 text-stone-400" />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                     Duration (Minutes)
                   </label>
                   <input
@@ -550,13 +587,13 @@ export default function ServicesDashboardPage() {
                     required
                     value={customDuration}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => setCustomDuration(Number(e.target.value))}
-                    className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                    className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-800 shadow-2xs focus:border-stone-400 focus:outline-hidden"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-500">
                   Description
                 </label>
                 <textarea
@@ -564,26 +601,32 @@ export default function ServicesDashboardPage() {
                   value={customDescription}
                   onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCustomDescription(e.target.value)}
                   placeholder="Included treatments, steps, or products..."
-                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  className="mt-1 w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-800 shadow-2xs placeholder:text-stone-400 focus:border-stone-400 focus:outline-hidden"
                 />
               </div>
 
-              {modalError && <p className="text-xs text-red-600">{modalError}</p>}
+              {modalError && (
+                <div className="flex items-center gap-1.5 text-xs text-rose-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-stone-200/70">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300"
+                  className="rounded-xl border border-stone-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createService.isPending}
-                  className="rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-stone-800 active:scale-[0.98] transition disabled:opacity-50"
                 >
-                  {createService.isPending ? 'Saving…' : isVendor ? 'Save Service' : 'Save & Assign'}
+                  {createService.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span>{isVendor ? 'Save Service' : 'Save & Assign'}</span>
                 </button>
               </div>
             </form>
@@ -591,65 +634,83 @@ export default function ServicesDashboardPage() {
         </div>
       )}
 
-      {/* Services Listing */}
+      {/* 4. Active Services Listing (Modern Micro-Card Deck) */}
       {displayedServices.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-200 py-12 px-4 text-center dark:border-zinc-800">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {isVendor ? 'No services stored in database yet.' : 'You have no assigned services yet.'}
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-stone-200 bg-[#FAF8F5]/60 py-14 px-4 text-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-200/60 text-stone-500">
+            <Scissors className="h-5 w-5" />
+          </div>
+          <p className="mt-3 text-sm font-bold text-stone-800">
+            {isVendor ? 'No services in store catalog' : 'No services assigned to your chair'}
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-0.5 text-xs text-stone-400">
             {isVendor
-              ? 'Click "Add New Service" above to add your first catalog offering.'
-              : 'Click "Create & Assign Service" above to add services to your specialist schedule.'}
+              ? 'Click "New Service" to add offerings to your salon storefront.'
+              : 'Add services above to make your chair available for customer bookings.'}
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        <div className="space-y-3">
           {displayedServices.map((s: Service) => (
-            <li key={s.id} className="py-4 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-zinc-900 text-base dark:text-zinc-100">{s.name}</span>
-                  <span className="text-xs font-bold text-zinc-900 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-100 px-2 py-0.5 rounded flex items-center">
-                    <IndianRupee size={11} className="-mr-0.5" /> {Number(s.price).toFixed(2)}
-                  </span>
-                  {isProvider && (
-                    <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                      <Check className="h-2.5 w-2.5" /> Assigned
+            <div
+              key={s.id}
+              className="group relative rounded-2xl border border-stone-200/80 bg-[#FAF8F5] p-4 shadow-2xs transition hover:border-stone-300 sm:p-5"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {/* Left: Service Details */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-bold text-stone-900">{s.name}</h2>
+                    <span className="inline-flex items-center gap-0.5 rounded-md bg-stone-200/70 px-2 py-0.5 font-mono text-xs font-bold text-stone-900">
+                      ₹{Number(s.price).toFixed(0)}
                     </span>
+                    {isProvider && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 ring-1 ring-emerald-600/20">
+                        <Check className="h-3 w-3" />
+                        <span>Active on Chair</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Service Meta Chips */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-stone-400" />
+                      <span className="font-semibold text-stone-700">{s.durationMinutes} mins</span>
+                      {s.bufferMinutes > 0 && <span>(+{s.bufferMinutes}m buffer)</span>}
+                    </div>
+
+                    <span>•</span>
+
+                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-stone-400">
+                      <LinkIcon className="h-3 w-3" />
+                      <span>{s.slug}</span>
+                    </span>
+                  </div>
+
+                  {s.description && (
+                    <p className="text-xs italic text-stone-600 line-clamp-1">&ldquo;{s.description}&rdquo;</p>
                   )}
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  <span className="inline-flex items-center gap-1 rounded bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-zinc-700 dark:text-zinc-300">
-                    <span className="text-zinc-400">slug:</span> {s.slug}
-                  </span>
-                  <span>·</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-zinc-400" /> {s.durationMinutes} mins
-                  </span>
-                  {s.bufferMinutes > 0 && <span>(+{s.bufferMinutes}m buffer)</span>}
-                </div>
-
-                {s.description && (
-                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">{s.description}</p>
+                {/* Right: Vendor Administrative Controls */}
+                {isVendor && (
+                  <div className="flex shrink-0 items-center justify-end border-t border-stone-200/60 pt-2 sm:border-0 sm:pt-0">
+                    <button
+                      type="button"
+                      onClick={() => deleteService.mutate(s.id)}
+                      disabled={deleteService.isPending}
+                      className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-stone-600 shadow-2xs hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 active:scale-[0.98] transition disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-stone-400 group-hover:text-rose-600" />
+                      <span>Delete</span>
+                    </button>
+                  </div>
                 )}
               </div>
-
-              {isVendor && (
-                <button
-                  type="button"
-                  onClick={() => deleteService.mutate(s.id)}
-                  disabled={deleteService.isPending}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span>Delete</span>
-                </button>
-              )}
-            </li>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

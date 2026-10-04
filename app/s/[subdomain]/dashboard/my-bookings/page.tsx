@@ -1,60 +1,65 @@
 'use client';
 
-import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
+import {
+  Clock,
+  Mail,
+  Phone,
+  Check,
+  X,
+  AlertCircle,
+  UserX,
+  Loader2,
+  Calendar,
+  MessageSquare,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 import { useAppointments, useUpdateAppointmentStatus, useCurrentUser } from '@/lib/queries';
 import type { AppointmentWithDetails } from '@/lib/api';
-import { Mail, Phone } from 'lucide-react';
 
-interface StatusConfig {
-  label: string;
-  badgeClass: string;
-  dotClass: string;
-}
+type AppointmentStatus = AppointmentWithDetails['status'];
+type ActionableStatus = Extract<AppointmentStatus, 'confirmed' | 'cancelled' | 'completed'>;
+type FilterView = 'requests' | 'today' | 'upcoming' | 'all';
 
-const STATUS_MAP: Record<string, StatusConfig> = {
-  confirmed: {
-    label: 'Confirmed',
-    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200/60',
-    dotClass: 'bg-emerald-500 animate-pulse',
-  },
+// Clear, unambiguous status display settings
+const STATUS_META: Record<
+  AppointmentStatus,
+  {
+    badgeLabel: string;
+    badgeStyle: string;
+    cardBorder: string;
+    cardBg: string;
+  }
+> = {
   pending: {
-    label: 'Pending Review',
-    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200/60',
-    dotClass: 'bg-amber-500',
+    badgeLabel: 'New Request',
+    badgeStyle: 'bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400/30',
+    cardBorder: 'border-amber-300/80 ring-2 ring-amber-400/20',
+    cardBg: 'bg-amber-50/40',
+  },
+  confirmed: {
+    badgeLabel: 'Scheduled',
+    badgeStyle: 'bg-emerald-100/80 text-emerald-900 border-emerald-300 ring-1 ring-emerald-500/20',
+    cardBorder: 'border-stone-200/90',
+    cardBg: 'bg-[#FAF8F5]',
   },
   completed: {
-    label: 'Completed',
-    badgeClass: 'bg-ink/[0.04] text-ink/60 border-ink/10',
-    dotClass: 'bg-ink/30',
+    badgeLabel: 'Done',
+    badgeStyle: 'bg-stone-200/70 text-stone-600 border-stone-300',
+    cardBorder: 'border-stone-200/60',
+    cardBg: 'bg-stone-100/40 opacity-75',
   },
   cancelled: {
-    label: 'Cancelled',
-    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200/60',
-    dotClass: 'bg-rose-500',
+    badgeLabel: 'Cancelled',
+    badgeStyle: 'bg-rose-100 text-rose-800 border-rose-200',
+    cardBorder: 'border-stone-200/50',
+    cardBg: 'bg-stone-100/30 opacity-60',
   },
 };
-
-type FilterView = 'active' | 'today' | 'pending' | 'all';
-
-function allowedNextStatuses(status: AppointmentWithDetails['status']) {
-  if (status === 'pending') return ['confirmed', 'cancelled'] as const;
-  if (status === 'confirmed') return ['completed', 'cancelled'] as const;
-  return [] as const;
-}
-
-function getActionLabel(status: 'confirmed' | 'cancelled' | 'completed') {
-  switch (status) {
-    case 'confirmed':
-      return 'Confirm Slot';
-    case 'completed':
-      return 'Mark Complete';
-    case 'cancelled':
-      return 'Cancel';
-    default:
-      return status;
-  }
-}
 
 export default function MyBookingsDashboardPage() {
   const { subdomain } = useParams<{ subdomain: string }>();
@@ -62,203 +67,207 @@ export default function MyBookingsDashboardPage() {
   const { data: appointments = [], isLoading: loadingAppointments, error } = useAppointments(subdomain);
   const updateStatus = useUpdateAppointmentStatus(subdomain);
 
-  const [filter, setFilter] = useState<FilterView>('active');
+  const [filter, setFilter] = useState<FilterView>('requests');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeActionId, setActiveActionId] = useState<number | null>(null);
 
-  // Filter down strictly to appointments for this practitioner's chair
+  // Filter bookings strictly to this practitioner
   const myBookings = useMemo(() => {
     if (!user || user.providerId === null) return [];
-    return appointments.filter((a) => a.providerId === user.providerId);
+    return appointments.filter((apt) => apt.providerId === user.providerId);
   }, [appointments, user]);
 
-  const now = new Date();
-  const todayStr = now.toDateString();
+  const now = useMemo(() => new Date(), []);
+  const todayStr = useMemo(() => now.toDateString(), [now]);
 
-  // Metrics Counters
+  // Aggregate metrics
   const metrics = useMemo(() => {
-    const todayCount = myBookings.filter(
-      (a) => new Date(a.startTime).toDateString() === todayStr && a.status !== 'cancelled'
-    ).length;
+    let todayCount = 0;
+    let pendingCount = 0;
+    let confirmedCount = 0;
 
-    const pendingCount = myBookings.filter((a) => a.status === 'pending').length;
-    const confirmedCount = myBookings.filter((a) => a.status === 'confirmed').length;
+    for (const apt of myBookings) {
+      if (new Date(apt.startTime).toDateString() === todayStr && apt.status !== 'cancelled') {
+        todayCount++;
+      }
+      if (apt.status === 'pending') pendingCount++;
+      if (apt.status === 'confirmed') confirmedCount++;
+    }
 
     return { todayCount, pendingCount, confirmedCount };
   }, [myBookings, todayStr]);
 
   // Tab Filtering Logic
   const filteredBookings = useMemo(() => {
-    return myBookings.filter((a) => {
-      const isPast = new Date(a.startTime) < now;
-      const isToday = new Date(a.startTime).toDateString() === todayStr;
+    return myBookings.filter((apt) => {
+      const isPast = new Date(apt.startTime).getTime() < now.getTime();
+      const isToday = new Date(apt.startTime).toDateString() === todayStr;
 
-      if (filter === 'active') {
-        return (a.status === 'pending' || a.status === 'confirmed') && !isPast;
+      switch (filter) {
+        case 'requests':
+          // Prioritize actions: Pending first, or all active if none pending
+          return apt.status === 'pending';
+        case 'today':
+          return isToday && apt.status !== 'cancelled';
+        case 'upcoming':
+          return apt.status === 'confirmed' && !isPast;
+        case 'all':
+        default:
+          return true;
       }
-      if (filter === 'today') {
-        return isToday && a.status !== 'cancelled';
-      }
-      if (filter === 'pending') {
-        return a.status === 'pending';
-      }
-      return true;
     });
   }, [myBookings, filter, now, todayStr]);
 
-  function handleStatusChange(id: number, nextStatus: 'confirmed' | 'cancelled' | 'completed') {
+  function handleStatusChange(id: number, nextStatus: ActionableStatus) {
     setActionError(null);
+    setActiveActionId(id);
+
     updateStatus.mutate(
       { id, status: nextStatus },
       {
-        onSuccess: () => setCancellingId(null),
-        onError: (err) => {
-          setActionError(err instanceof Error ? err.message : 'Could not modify appointment state.');
+        onSuccess: () => {
           setCancellingId(null);
+          setActiveActionId(null);
+        },
+        onError: (err) => {
+          setActionError(err instanceof Error ? err.message : 'Action failed');
+          setCancellingId(null);
+          setActiveActionId(null);
         },
       }
     );
   }
 
   /* ------------------------------------------------------------- */
-  /* Access / Guard States                                         */
+  /* Skeleton Loading State                                        */
   /* ------------------------------------------------------------- */
   if (loadingUser || loadingAppointments) {
     return (
-      <div className="space-y-4 py-8">
-        <div className="h-20 animate-pulse rounded-2xl border border-ink/10 bg-white/40" />
-        <div className="h-44 animate-pulse rounded-2xl border border-ink/10 bg-white/40" />
+      <div className="mx-auto max-w-2xl space-y-3 px-4 py-8">
+        <div className="h-28 w-full animate-pulse rounded-2xl bg-stone-200/50" />
+        <div className="h-36 w-full animate-pulse rounded-2xl bg-stone-200/50" />
+        <div className="h-36 w-full animate-pulse rounded-2xl bg-stone-200/50" />
       </div>
     );
   }
 
+  /* ------------------------------------------------------------- */
+  /* Unlinked Provider State                                       */
+  /* ------------------------------------------------------------- */
   if (!user || user.providerId === null) {
     return (
-      <div className="rounded-3xl border border-dashed border-ink/15 bg-white/50 p-12 text-center backdrop-blur-xs">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-ink/5 text-ink/40">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <div className="rounded-3xl border border-stone-300/70 bg-[#FAF8F5] p-8 shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-stone-200/80 text-stone-600">
+            <UserX className="h-6 w-6" />
+          </div>
+          <h2 className="mt-4 text-base font-bold text-stone-900">No Chair Assigned</h2>
+          <p className="mt-1 text-xs text-stone-500">
+            This account is not associated with an active station. Please ask an administrator to assign your chair.
+          </p>
         </div>
-        <h2 className="mt-4 font-display text-lg font-medium text-ink">Practitioner Record Unlinked</h2>
-        <p className="mt-1 text-xs text-ink/60">
-          This account is not associated with an active provider seat in this studio.
-        </p>
       </div>
     );
   }
 
+  /* ------------------------------------------------------------- */
+  /* Error State                                                   */
+  /* ------------------------------------------------------------- */
   if (error) {
     return (
-      <div className="rounded-2xl border border-dashed border-rose-300 bg-rose-50/50 p-8 text-center">
-        <p className="text-sm font-medium text-rose-800">Could not retrieve schedule entries.</p>
-        <p className="mt-1 text-xs text-rose-600">Please refresh or verify operational permissions.</p>
+      <div className="mx-auto max-w-7xl">
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-900">
+          <AlertCircle className="h-5 w-5 shrink-0 text-rose-600" />
+          <p className="text-xs font-semibold">Failed to sync schedule. Please refresh.</p>
+        </div>
       </div>
     );
   }
 
-  /* ------------------------------------------------------------- */
-  /* Main Dashboard Interface                                      */
-  /* ------------------------------------------------------------- */
   return (
-    <div className="space-y-8">
-      {/* Header & Metric Counter Cards */}
-      <div>
-        <div className="flex flex-col justify-between gap-4 border-b border-ink/10 pb-6 sm:flex-row sm:items-end">
+    <div className="mx-auto max-w-7xl space-y-4">
+      {/* Top Header Card */}
+      <header className="rounded-3xl border border-stone-200/80 bg-[#FAF8F5] p-5 shadow-xs">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-ink/70">
-              <span className="font-mono text-brass">Practitioner Console</span>
-              <span className="text-ink/30">•</span>
-              <span>Schedule Manager</span>
+            <div className="flex items-center gap-1.5 text-xs text-stone-500">
+              <span className="font-semibold text-stone-900">Chair #{user.providerId}</span>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Schedule
+              </span>
             </div>
-            <h1 className="mt-3 font-display text-3xl font-light tracking-tight text-ink sm:text-4xl">
-              Chair Appointments
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-stone-900">
+              Appointments
             </h1>
-            <p className="mt-1 text-sm text-ink/60">
-              Manage incoming requests, attendance statuses, and chair availability.
-            </p>
           </div>
 
-          {/* Quick Metrics Strip */}
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-ink/10 bg-white/70 px-4 py-2.5 text-center shadow-xs backdrop-blur-xs">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink/40">Today</span>
-              <span className="font-display text-xl font-medium text-ink">{metrics.todayCount}</span>
+          {/* Quick Metrics Capsule */}
+          <div className="flex items-center rounded-2xl border border-stone-200 bg-white/70 px-3 py-1.5 shadow-2xs">
+            <div className="text-center pr-3 border-r border-stone-200">
+              <span className="block text-[9px] uppercase font-bold text-stone-400">Today</span>
+              <span className="text-sm font-bold text-stone-900 leading-none">{metrics.todayCount}</span>
             </div>
-            <div className="rounded-2xl border border-ink/10 bg-white/70 px-4 py-2.5 text-center shadow-xs backdrop-blur-xs">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-amber-700/60">Pending</span>
-              <span className="font-display text-xl font-medium text-amber-800">{metrics.pendingCount}</span>
-            </div>
-            <div className="rounded-2xl border border-ink/10 bg-white/70 px-4 py-2.5 text-center shadow-xs backdrop-blur-xs">
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-emerald-700/60">Confirmed</span>
-              <span className="font-display text-xl font-medium text-emerald-800">{metrics.confirmedCount}</span>
+            <div className="text-center pl-3">
+              <span className="block text-[9px] uppercase font-bold text-amber-700">Requests</span>
+              <span className="text-sm font-bold text-amber-700 leading-none">{metrics.pendingCount}</span>
             </div>
           </div>
         </div>
 
-        {/* View Filter Pill Bar */}
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex rounded-full border border-ink/10 bg-white/80 p-1 text-xs shadow-xs backdrop-blur-xs">
-            <button
-              type="button"
-              onClick={() => setFilter('active')}
-              className={`rounded-full px-3.5 py-1.5 font-medium transition-all ${
-                filter === 'active' ? 'bg-ink text-paper shadow-xs' : 'text-ink/60 hover:text-ink'
-              }`}
-            >
-              Active Queue
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('today')}
-              className={`rounded-full px-3.5 py-1.5 font-medium transition-all ${
-                filter === 'today' ? 'bg-ink text-paper shadow-xs' : 'text-ink/60 hover:text-ink'
-              }`}
-            >
-              Today&apos;s Slots
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('pending')}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition-all ${
-                filter === 'pending' ? 'bg-ink text-paper shadow-xs' : 'text-ink/60 hover:text-ink'
-              }`}
-            >
-              <span>Pending Action</span>
-              {metrics.pendingCount > 0 && (
-                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
-                  {metrics.pendingCount}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('all')}
-              className={`rounded-full px-3.5 py-1.5 font-medium transition-all ${
-                filter === 'all' ? 'bg-ink text-paper shadow-xs' : 'text-ink/60 hover:text-ink'
-              }`}
-            >
-              Full Ledger ({myBookings.length})
-            </button>
-          </div>
+        {/* Filter Navigation Tabs */}
+        <nav className="mt-5 flex gap-1.5 overflow-x-auto no-scrollbar border-t border-stone-200/70 pt-3">
+          {[
+            { id: 'requests', label: 'New Requests', count: metrics.pendingCount, alert: true },
+            { id: 'today', label: 'Today', count: metrics.todayCount },
+            { id: 'upcoming', label: 'Upcoming', count: metrics.confirmedCount },
+            { id: 'all', label: `All (${myBookings.length})` },
+          ].map((tab) => {
+            const isActive = filter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setFilter(tab.id as FilterView)}
+                className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isActive
+                    ? 'bg-stone-900 text-white shadow-xs'
+                    : 'text-stone-600 hover:bg-stone-200/60 hover:text-stone-900'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span
+                    className={`flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                      tab.alert && !isActive
+                        ? 'bg-amber-500 text-white'
+                        : isActive
+                        ? 'bg-stone-700 text-stone-100'
+                        : 'bg-stone-200 text-stone-800'
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
 
-          <span className="text-xs text-ink/40">
-            Showing <strong className="text-ink">{filteredBookings.length}</strong> items
-          </span>
-        </div>
-      </div>
-
-      {/* Error Notice */}
+      {/* Action Error Notice */}
       {actionError && (
-        <div className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-800">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs text-rose-900">
           <div className="flex items-center gap-2">
-            <span>⚠️</span>
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
             <span>{actionError}</span>
           </div>
           <button
             type="button"
             onClick={() => setActionError(null)}
-            className="font-semibold underline hover:no-underline"
+            className="font-bold underline hover:no-underline"
           >
             Dismiss
           </button>
@@ -266,160 +275,185 @@ export default function MyBookingsDashboardPage() {
       )}
 
       {/* Empty State */}
-      {filteredBookings.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-ink/15 bg-white/40 px-6 py-16 text-center backdrop-blur-xs">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ink/5 text-ink/40">
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-            </svg>
+      {filteredBookings.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-stone-200 bg-[#FAF8F5]/60 py-14 px-4 text-center">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stone-200/60 text-stone-500">
+            <Calendar className="h-5 w-5" />
           </div>
-          <h2 className="mt-4 font-display text-lg font-medium text-ink">No Appointments in View</h2>
-          <p className="mt-1 max-w-sm text-xs text-ink/50">
-            No schedule bookings match the active filter criteria. Switch filters or await incoming bookings.
+          <p className="mt-3 text-sm font-bold text-stone-800">
+            {filter === 'requests' ? 'No pending requests' : 'No appointments found'}
+          </p>
+          <p className="mt-0.5 text-xs text-stone-400">
+            {filter === 'requests'
+              ? 'All new requests have been accepted or settled.'
+              : 'Try selecting a different filter above.'}
           </p>
         </div>
-      )}
-
-      {/* Bookings Queue */}
-      {filteredBookings.length > 0 && (
-        <ul className="space-y-4">
-          {filteredBookings.map((a) => {
-            const startDate = new Date(a.startTime);
-            const statusCfg = STATUS_MAP[a.status] ?? {
-              label: a.status,
-              badgeClass: 'bg-ink/5 text-ink/60 border-ink/10',
-              dotClass: 'bg-ink/30',
-            };
-            const nextOptions = allowedNextStatuses(a.status);
-            const isConfirmingCancel = cancellingId === a.id;
+      ) : (
+        /* Appointment Cards */
+        <div className="space-y-3">
+          {filteredBookings.map((apt) => {
+            const startDate = new Date(apt.startTime);
+            const meta = STATUS_META[apt.status] ?? STATUS_META.pending;
+            const isConfirmingCancel = cancellingId === apt.id;
+            const isRowMutating = activeActionId === apt.id && updateStatus.isPending;
 
             return (
-              <li
-                key={a.id}
-                className="group relative flex flex-col justify-between gap-6 rounded-2xl border border-ink/10 bg-white/70 p-5 shadow-xs ring-1 ring-ink/5 backdrop-blur-xs transition-all hover:border-ink/20 hover:shadow-md sm:flex-row sm:items-center sm:p-6"
+              <div
+                key={apt.id}
+                className={`relative rounded-3xl border p-4 sm:p-5 shadow-2xs transition-all ${meta.cardBorder} ${meta.cardBg}`}
               >
-                {/* Left Column: Date Stamp & Customer Info */}
-                <div className="flex items-start gap-4 sm:gap-5">
-                  {/* Visual Date Badge */}
-                  <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-ink/10 bg-paper/80 font-display shadow-2xs sm:h-16 sm:w-16">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-brass">
-                      {startDate.toLocaleDateString('en-IN', { month: 'short' })}
-                    </span>
-                    <span className="text-lg font-light leading-none text-ink sm:text-xl">
-                      {startDate.getDate()}
-                    </span>
-                    <span className="text-[9px] uppercase tracking-wider text-ink/40">
-                      {startDate.toLocaleDateString('en-IN', { weekday: 'short' })}
-                    </span>
-                  </div>
+                {/* Header: Service Name & Clear Badge */}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-bold text-stone-900 sm:text-lg">
+                      {apt.serviceName}
+                    </h2>
 
-                  {/* Booking Metadata */}
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <h3 className="font-display text-lg font-medium text-ink sm:text-xl">
-                        {a.serviceName}
-                      </h3>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider ${statusCfg.badgeClass}`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dotClass}`} />
-                        {statusCfg.label}
+                    {/* Date & Time Capsule */}
+                    <div className="mt-1 flex items-center gap-2 text-xs font-medium text-stone-600">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-stone-200/70 px-2 py-0.5 font-bold text-stone-800">
+                        <Clock className="h-3 w-3 text-stone-500" />
+                        {startDate.toLocaleTimeString('en-IN', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {startDate.toLocaleDateString('en-IN', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
                       </span>
                     </div>
-
-                    {/* Email, Time & ID details */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink/60">
-  <span className="font-medium text-ink">
-    {startDate.toLocaleTimeString("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true
-    })}
-  </span>
-  <a
-    href={`mailto:${a.customerEmail}`}
-    className="flex items-center gap-1.5 transition-colors hover:text-ink"
-  >
-    <Mail className="h-3.5 w-3.5 text-ink/40" />
-    <span>{a.customerEmail}</span>
-  </a>
-  <a
-    href={`tel:${a.customerMobile}`}
-    className="flex items-center gap-1.5 transition-colors hover:text-ink"
-  >
-    <Phone className="h-3.5 w-3.5 text-ink/40" />
-    <span>{a.customerMobile}</span>
-  </a>
-</div>
-
-                    {/* Customer Notes Quote */}
-                    {a.customerNotes && (
-                      <div className="mt-2 rounded-xl border border-ink/10 bg-paper/60 px-3.5 py-2 text-xs italic text-ink/75">
-                        &ldquo;{a.customerNotes}&rdquo;
-                      </div>
-                    )}
                   </div>
+
+                  {/* High-visibility Status Badge */}
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${meta.badgeStyle}`}
+                  >
+                    {meta.badgeLabel}
+                  </span>
                 </div>
 
-                {/* Right Column: State Transitions & Inline Guard */}
-                <div className="flex shrink-0 items-center justify-end border-t border-ink/5 pt-3 sm:border-t-0 sm:pt-0">
-                  {isConfirmingCancel ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-rose-700">Cancel this slot?</span>
-                      <button
-                        type="button"
-                        onClick={() => handleStatusChange(a.id, 'cancelled')}
-                        disabled={updateStatus.isPending}
-                        className="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-white shadow-xs transition-colors hover:bg-rose-700 disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCancellingId(null)}
-                        className="rounded-full border border-ink/15 px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:bg-ink/5"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {nextOptions.map((next) => {
-                        const isCancel = next === 'cancelled';
-                        const isConfirm = next === 'confirmed';
-                        const isComplete = next === 'completed';
+                {/* Customer Contact Chips */}
+                <div className="mt-3.5 flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60">
+                  {apt.customerMobile && (
+                    <a
+                      href={`tel:${apt.customerMobile}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1 text-xs font-medium text-stone-800 hover:border-stone-300 hover:bg-white transition-all shadow-2xs"
+                    >
+                      <Phone className="h-3 w-3 text-emerald-600" />
+                      <span>{apt.customerMobile}</span>
+                    </a>
+                  )}
 
-                        return (
-                          <button
-                            key={next}
-                            type="button"
-                            onClick={() => {
-                              if (isCancel) {
-                                setCancellingId(a.id);
-                              } else {
-                                handleStatusChange(a.id, next);
-                              }
-                            }}
-                            disabled={updateStatus.isPending}
-                            className={`rounded-full px-4 py-2 text-xs font-medium tracking-wide transition-all active:scale-[0.98] disabled:opacity-50 ${
-                              isConfirm
-                                ? 'bg-ink text-paper shadow-xs hover:bg-brass'
-                                : isComplete
-                                ? 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                                : 'border border-ink/15 bg-white text-ink/70 hover:border-rose-300 hover:bg-rose-50/50 hover:text-rose-700'
-                            }`}
-                          >
-                            {getActionLabel(next)}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {apt.customerEmail && (
+                    <a
+                      href={`mailto:${apt.customerEmail}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white/80 px-2.5 py-1 text-xs font-medium text-stone-700 hover:border-stone-300 hover:bg-white transition-all shadow-2xs"
+                    >
+                      <Mail className="h-3 w-3 text-stone-500" />
+                      <span className="truncate max-w-[170px]">{apt.customerEmail}</span>
+                    </a>
                   )}
                 </div>
-              </li>
+
+                {/* Optional Customer Note */}
+                {apt.customerNotes && (
+                  <div className="mt-2.5 flex items-start gap-2 rounded-xl bg-stone-200/50 p-2.5 text-xs text-stone-700">
+                    <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-500" />
+                    <span className="italic leading-relaxed">&ldquo;{apt.customerNotes}&rdquo;</span>
+                  </div>
+                )}
+
+                {/* ACTION ZONE: Clear, Unmistakable Buttons */}
+                <div className="mt-4 pt-3 border-t border-stone-200/70">
+                  {isConfirmingCancel ? (
+                    /* Inline Cancellation Safeguard */
+                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 border border-rose-200 p-2.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-rose-900 font-semibold">
+                        <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                        <span>Cancel this appointment?</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                          disabled={isRowMutating}
+                          className="rounded-xl bg-rose-700 px-3 py-1.5 font-bold text-white shadow-xs hover:bg-rose-800 disabled:opacity-50"
+                        >
+                          {isRowMutating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Yes, Cancel'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCancellingId(null)}
+                          disabled={isRowMutating}
+                          className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 font-semibold text-stone-700 hover:bg-stone-50"
+                        >
+                          Keep
+                        </button>
+                      </div>
+                    </div>
+                  ) : apt.status === 'pending' ? (
+                    /* STATE 1: PENDING -> ACCEPT / DECLINE */
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(apt.id, 'confirmed')}
+                        disabled={isRowMutating}
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                      >
+                        {isRowMutating ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 stroke-[3]" />
+                        )}
+                        <span>Accept</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCancellingId(apt.id)}
+                        disabled={isRowMutating}
+                        className="inline-flex items-center justify-center rounded-2xl border border-stone-300 bg-white px-3.5 py-2.5 text-xs font-bold text-stone-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 active:scale-[0.98] transition-all"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  ) : apt.status === 'confirmed' ? (
+                    /* STATE 2: CONFIRMED -> COMPLETE / CANCEL */
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(apt.id, 'completed')}
+                        disabled={isRowMutating}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl bg-stone-900 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-stone-800 active:scale-[0.98] transition-all disabled:opacity-50"
+                      >
+                        {isRowMutating ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                        )}
+                        <span>Mark as Completed</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCancellingId(apt.id)}
+                        disabled={isRowMutating}
+                        className="inline-flex items-center justify-center rounded-2xl border border-stone-200 bg-white/70 px-3.5 py-2.5 text-xs font-semibold text-stone-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 active:scale-[0.98] transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );

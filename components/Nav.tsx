@@ -113,13 +113,24 @@ export function Nav({ businessName, base, isProvider, isVendor }: { businessName
           <div className="flex flex-col space-y-4 text-sm font-medium">
             {isLoggedIn === true && (
               <>
-                <Link
-                  href={`${base}/bookings`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-1 text-ink/75 transition-colors hover:text-ink"
-                >
-                  My Bookings
-                </Link>
+                {(isProvider || isVendor) ? (
+                  <Link 
+                    href={`${base}/dashboard`} 
+                    className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    Dashboard
+                  </Link>
+                ) :(
+
+                  <Link 
+                    href={`${base}/bookings`} 
+                    className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                  >
+                    My Bookings
+                  </Link>
+                )
+                  
+                }
                 <button
                   onClick={handleLogout}
                   className="py-1 text-left text-ink/75 transition-colors hover:text-ink"
