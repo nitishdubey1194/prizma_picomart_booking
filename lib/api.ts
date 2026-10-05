@@ -1,4 +1,14 @@
+import { createApiClient } from "./api-client";
+import { webTokenStorage } from "./web-token-storage";
+
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_ORIGIN ?? 'http://localhost:3000';
+export const apiClient = createApiClient({
+  baseUrl: API_ORIGIN,
+  storage: webTokenStorage,
+  onAuthExpired: () => {
+    if (typeof window !== "undefined") window.location.href = "/login";
+  },
+});
 
 export interface FetchAppointmentOptions {
   providerId?: string | number | null;
@@ -160,27 +170,10 @@ async function apiFetch<T>(
   tenantSlug: string,
   init?: RequestInit
 ): Promise<T> {
-  const res = await fetch(`${API_ORIGIN}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tenant-slug': tenantSlug,
-      ...(init?.headers ?? {}),
-    },
+  return apiClient.request<T>(tenantSlug, path, {
     next: { revalidate: 60 },
+    ...init,
   });
-
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      message?: string;
-    };
-    throw new Error(
-      body.error ?? body.message ?? `Request to ${path} failed (${res.status})`
-    );
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
 // ---------------------------------------------------------------------------

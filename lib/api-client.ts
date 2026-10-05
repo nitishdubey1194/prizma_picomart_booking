@@ -3,6 +3,16 @@ export interface TokenPair {
   refreshToken: string;
 }
 
+export interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    tenantId: number;
+  };
+  tokens: TokenPair;
+}
+
 /**
  * Storage is pluggable so the same client works everywhere:
  * - Web: wrap localStorage, or an in-memory var + httpOnly cookie for the refresh token
@@ -33,13 +43,16 @@ interface ApiClientOptions {
 export function createApiClient({ baseUrl, storage, onAuthExpired }: ApiClientOptions) {
   let refreshInFlight: Promise<TokenPair> | null = null;
 
-  async function refresh(): Promise<TokenPair> {
+  async function refresh(tenantSlug: string): Promise<TokenPair> {
     const current = await storage.getTokens();
     if (!current) throw new ApiError(401, "Not logged in.");
 
     const res = await fetch(`${baseUrl}/api/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-tenant-slug": tenantSlug,
+      },
       body: JSON.stringify({ refreshToken: current.refreshToken }),
     });
 
@@ -49,41 +62,42 @@ export function createApiClient({ baseUrl, storage, onAuthExpired }: ApiClientOp
       throw new ApiError(res.status, "Session expired. Please log in again.");
     }
 
-    const tokens: TokenPair = await res.json();
+    const { tokens }: { tokens: TokenPair } = await res.json();
     await storage.setTokens(tokens);
     return tokens;
   }
 
   /** Ensures only ONE refresh call happens even if several requests 401 at the same time. */
-  function refreshOnce(): Promise<TokenPair> {
+  function refreshOnce(tenantSlug: string): Promise<TokenPair> {
     if (!refreshInFlight) {
-      refreshInFlight = refresh().finally(() => {
+      refreshInFlight = refresh(tenantSlug).finally(() => {
         refreshInFlight = null;
       });
     }
     return refreshInFlight;
   }
 
-  async function request<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
+  async function request<T>(tenantSlug: string, path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
     const tokens = await storage.getTokens();
 
     const res = await fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
         ...init.headers,
+        "x-tenant-slug": tenantSlug,
+        ...(tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
       },
     });
 
     if (res.status === 401 && !isRetry && tokens) {
-      await refreshOnce();
-      return request<T>(path, init, true); // retry exactly once
+      await refreshOnce(tenantSlug);
+      return request<T>(tenantSlug, path, init, true); // retry exactly once
     }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({ message: res.statusText }));
-      throw new ApiError(res.status, body.message || "Request failed.");
+      throw new ApiError(res.status, body.error || body.message || "Request failed.");
     }
 
     if (res.status === 204) return undefined as T;
@@ -91,22 +105,24 @@ export function createApiClient({ baseUrl, storage, onAuthExpired }: ApiClientOp
   }
 
   return {
-    async register(email: string, password: string, mobile: string, fullname: string) {
-      const tokens = await request<TokenPair>("/api/auth/register", {
+    async register(tenantSlug: string, email: string, password: string, mobile: string, fullname: string) {
+      const response = await request<AuthResponse>(tenantSlug, "/api/auth/register", {
         method: "POST",
+        cache: "no-store",
         body: JSON.stringify({ email, password, mobile, fullname }),
       });
-      await storage.setTokens(tokens);
-      return tokens;
+      await storage.setTokens(response.tokens);
+      return response;
     },
 
-    async login(email: string, password: string) {
-      const tokens = await request<TokenPair>("/api/auth/login", {
+    async login(tenantSlug: string, email: string, password: string) {
+      const response = await request<AuthResponse>(tenantSlug, "/api/auth/login", {
         method: "POST",
+        cache: "no-store",
         body: JSON.stringify({ email, password }),
       });
-      await storage.setTokens(tokens);
-      return tokens;
+      await storage.setTokens(response.tokens);
+      return response;
     },
 
     async logout() {

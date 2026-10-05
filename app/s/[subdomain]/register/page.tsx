@@ -10,7 +10,9 @@ export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { subdomain } = useParams<{ subdomain: string }>();
-  const base = "";
+  const isDev = process.env.NODE_ENV === 'development';
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? (isDev ? 'localhost:3000' : 'picomart.in');
+  const base = `${isDev ? 'http' : 'https'}://${subdomain}.${rootDomain}`;
   const returnTo = searchParams.get('returnTo') ?? base;
   const [fullname, setFullname] = useState('');
   const [mobile, setMobile] = useState('');
@@ -24,7 +26,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await authClient.register(email, password, mobile, fullname);
+      await authClient.register(subdomain, email, password, mobile, fullname);
       router.push(returnTo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong creating your account.');

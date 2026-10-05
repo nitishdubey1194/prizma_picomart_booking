@@ -9,7 +9,7 @@ import { getProviders, getServices, getAvailability, bookAppointment, updateAppo
   createServiceWithAutoAssign,
   type CreateServiceWithAutoAssignInput,
   } from '@/lib/api';
-import { getAccessToken } from './auth';
+import { authClient, getAccessToken } from './auth';
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export { WEEKDAY_NAMES };
 
@@ -93,13 +93,13 @@ export function useCurrentUser(tenantSlug: string) {
   return useQuery({
     queryKey: ['currentUser', tenantSlug],
     queryFn: async () => {
-      const token = await getAccessToken();
-      if (!token) return null;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_ORIGIN}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}`, 'x-tenant-slug': tenantSlug },
-      });
-      if (!res.ok) return null;
-      return res.json() as Promise<CurrentUser>;
+      try {
+        return await authClient.request<CurrentUser>(tenantSlug, '/api/auth/me', {
+          cache: 'no-store',
+        });
+      } catch {
+        return null;
+      }
     },
   });
 }

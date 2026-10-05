@@ -2,28 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import { authClient, setAuthTokens } from '@/lib/auth';
+import { authClient } from '@/lib/auth';
 import { ApiError } from '@/lib/api-client';
 import Link from 'next/link';
-
-interface LoginResponse {
-  user: {
-    id: string;
-    email: string;
-    role: string;
-    tenantId: number;
-  };
-  tokens: {
-    accessToken: string;
-    refreshToken: string;
-  };
-}
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const params = useParams<{ subdomain?: string }>();
-  const subdomain = params?.subdomain;
+  const { subdomain } = useParams<{ subdomain: string }>();
 
   const isDev = process.env.NODE_ENV === 'development';
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? (isDev ? 'localhost:3000' : 'picomart.in');
@@ -46,12 +32,7 @@ export default function LoginPage() {
 
     try {
       // 1. Call login on authClient
-      const res = (await authClient.login(email, password)) as unknown as LoginResponse;
-
-      // 2. Explicitly commit tokens to webTokenStorage if returned
-      if (res?.tokens) {
-        await setAuthTokens(res.tokens);
-      }
+      await authClient.login(subdomain, email, password);
 
       // 3. Navigate: Use full browser reload for cross-subdomain/full URLs,
       // or router.push + router.refresh for relative paths.
