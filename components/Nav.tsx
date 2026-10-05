@@ -33,6 +33,18 @@ export function Nav({ businessName, base, isProvider, isVendor }: { businessName
 
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-8 text-[13px] font-medium tracking-wide sm:flex">
+          <Link
+            href={`${base}/providers`}
+            className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
+          >
+            Providers
+          </Link>
+          <Link
+            href={`${base}/assistant`}
+            className="text-ink/65 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
+          >
+            Booking assistant
+          </Link>
           {isLoggedIn === true && (
             <>
               {(isProvider || isVendor) ? (
@@ -111,6 +123,20 @@ export function Nav({ businessName, base, isProvider, isVendor }: { businessName
       {isMobileMenuOpen && (
         <div className="border-b border-ink/10 bg-paper px-6 py-6 sm:hidden animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex flex-col space-y-4 text-sm font-medium">
+            <Link
+              href={`${base}/providers`}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="py-1 text-ink/75 transition-colors hover:text-ink"
+            >
+              Providers
+            </Link>
+            <Link
+              href={`${base}/assistant`}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="py-1 text-ink/75 transition-colors hover:text-ink"
+            >
+              Booking assistant
+            </Link>
             {isLoggedIn === true && (
               <>
                 {(isProvider || isVendor) ? (
