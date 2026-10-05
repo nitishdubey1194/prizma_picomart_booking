@@ -58,7 +58,13 @@ const Icons = {
   ),
   CheckCircle2: (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-  )
+  ),
+  MapPin: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+  ),
+  Navigation: (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -68,7 +74,7 @@ const Icons = {
 export default function ProvidersPage() {
   const { subdomain } = useParams<{ subdomain: string }>();
   const { data: user, isLoading: loadingUser } = useCurrentUser(subdomain);
-    
+
   // Queries
   const { data: providers = [], isLoading: isLoadingProviders, refetch: refetchProviders } = useProviders(subdomain);
   const { data: allServices = [], isLoading: isLoadingServices } = useServices(subdomain);
@@ -80,6 +86,9 @@ export default function ProvidersPage() {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [category, setCategory] = useState<string>(PROVIDER_CATEGORIES[0].value);
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Search & Pagination states
@@ -90,7 +99,28 @@ export default function ProvidersPage() {
   const [selectedProviderForServices, setSelectedProviderForServices] = useState<Provider | null>(null);
   const [selectedProviderForAccount, setSelectedProviderForAccount] = useState<Provider | null>(null);
 
-  // Filter providers across name, slug, and category label/value
+  // Quick geolocation grab
+  function handleDetectLocation() {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setIsLocating(false);
+      },
+      (err) => {
+        setError(`Location access denied or unavailable (${err.message}).`);
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+
+  // Filter providers across name, slug, category, and email
   const filteredProviders = useMemo(() => {
     if (!searchTerm.trim()) return providers;
     const term = searchTerm.toLowerCase();
@@ -117,13 +147,35 @@ export default function ProvidersPage() {
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    const latNum = latitude.trim() !== '' ? parseFloat(latitude) : null;
+    const lngNum = longitude.trim() !== '' ? parseFloat(longitude) : null;
+
+    if (latNum !== null && (isNaN(latNum) || latNum < -90 || latNum > 90)) {
+      setError('Latitude must be a valid number between -90 and 90.');
+      return;
+    }
+
+    if (lngNum !== null && (isNaN(lngNum) || lngNum < -180 || lngNum > 180)) {
+      setError('Longitude must be a valid number between -180 and 180.');
+      return;
+    }
+
     createProvider.mutate(
-      { name, slug, category },
+      {
+        name,
+        slug,
+        category,
+        latitude: latNum,
+        longitude: lngNum,
+      },
       {
         onSuccess: () => {
           setName('');
           setSlug('');
           setCategory(PROVIDER_CATEGORIES[0].value);
+          setLatitude('');
+          setLongitude('');
         },
         onError: (err: unknown) => {
           if (err instanceof Error) {
@@ -137,35 +189,35 @@ export default function ProvidersPage() {
   }
 
   const isLoading = isLoadingProviders || isLoadingServices || loadingUser;
-  const isVendor = user?.role ? Array.isArray(user.role) ? user.role.includes('vendor') : user.role === 'vendor' : false;
-  if(!isVendor) {
-    if (!isLoading && !isVendor) {
+  const isVendor = user?.role ? (Array.isArray(user.role) ? user.role.includes('vendor') : user.role === 'vendor') : false;
+
+  if (!isVendor && !isLoading) {
     return (
       <PermissionDenied
         type="role_mismatch"
         currentIdentity={user?.email}
         currentRole={user?.role ?? 'Specialist / Practitioner'}
         requiredRole="Studio Vendor / Store Owner"
-        fallbackHref={`/dashboard/my-bookings`}
+        fallbackHref="/dashboard/my-bookings"
         fallbackLabel="Return to Homepage"
       />
     );
   }
-  }
+
   return (
     <div className="min-h-screen bg-gray-50/50">
       <div className="max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        
+
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 font-display">Staff & Providers</h1>
             <p className="mt-1.5 text-sm text-gray-500">
-              Manage practitioner profiles, assign bookable services, and connect login accounts.
+              Manage practitioner profiles, assign bookable services, coordinates, and connect login accounts.
             </p>
           </div>
           {!isLoading && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-gray-200 shadow-sm self-start sm:self-auto">
               <Icons.Users className="w-4 h-4 text-blue-500" />
               <span className="text-sm font-medium text-gray-700">
                 {providers.length} {providers.length === 1 ? 'Provider' : 'Providers'}
@@ -177,103 +229,172 @@ export default function ProvidersPage() {
         {/* Global Loading State */}
         {isLoading ? (
           <div className="space-y-4 animate-pulse">
-            <div className="h-48 bg-white border border-gray-200 rounded-2xl"></div>
+            <div className="h-56 bg-white border border-gray-200 rounded-2xl"></div>
             <div className="h-32 bg-gray-100 border border-gray-200 rounded-2xl"></div>
             <div className="h-32 bg-gray-100 border border-gray-200 rounded-2xl"></div>
           </div>
         ) : (
           <div className="space-y-8">
-            
+
             {/* Create New Provider Form Card */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                   <Icons.UserPlus className="w-5 h-5 text-gray-400" />
                   Add New Provider
                 </h2>
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={isLocating}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50 self-start sm:self-auto cursor-pointer"
+                >
+                  <Icons.Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+                  {isLocating ? 'Fetching Location...' : 'Use My Current Location'}
+                </button>
               </div>
-              <div className="p-6">
-                <form onSubmit={handleCreate} className="flex flex-col md:flex-row md:items-end gap-5">
-                  <div className="flex-1 space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Full Name
-                    </label>
-                    <input
-                      required
-                      placeholder="e.g. Downtown Barber Co."
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        if (!slug) {
-                          setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
-                        }
-                      }}
-                      className="block w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                    />
-                  </div>
 
-                  <div className="flex-1 space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      URL Slug
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm pointer-events-none">
-                        /
-                      </span>
+              <div className="p-6">
+                <form onSubmit={handleCreate} className="space-y-5">
+                  {/* Row 1: Basic Info */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
                       <input
                         required
-                        placeholder="downtown-barber"
-                        value={slug}
-                        onChange={(e) => setSlug(e.target.value)}
-                        className="block w-full rounded-xl border border-gray-300 bg-white pl-7 pr-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        placeholder="e.g. Downtown Barber Co."
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          if (!slug) {
+                            setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+                          }
+                        }}
+                        className="block w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                       />
                     </div>
-                  </div>
 
-                  <div className="flex-1 space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                      Specialty
-                    </label>
-                    <div className="relative">
-                      <select
-                        required
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                        className="block w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
-                      >
-                        {PROVIDER_CATEGORIES.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        URL Slug <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-sm pointer-events-none">
+                          /
+                        </span>
+                        <input
+                          required
+                          placeholder="downtown-barber"
+                          value={slug}
+                          onChange={(e) => setSlug(e.target.value)}
+                          className="block w-full rounded-xl border border-gray-300 bg-white pl-7 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                      <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        Specialty <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <select
+                          required
+                          value={category}
+                          onChange={(e) => setCategory(e.target.value)}
+                          className="block w-full appearance-none rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                        >
+                          {PROVIDER_CATEGORIES.map((cat) => (
+                            <option key={cat.value} value={cat.value}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-gray-500">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={createProvider.isPending}
-                    className="w-full md:w-auto mt-4 md:mt-0 px-6 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center min-w-[140px]"
-                  >
-                    {createProvider.isPending ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        Adding...
-                      </span>
-                    ) : (
-                      'Add Provider'
-                    )}
-                  </button>
+                  {/* Row 2: Coordinates & Submit Button */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1 items-end">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Latitude
+                        </label>
+                        <span className="text-[11px] text-gray-400">-90 to 90</span>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                          <Icons.MapPin className="h-4 w-4" />
+                        </span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="-90"
+                          max="90"
+                          placeholder="e.g. 32.7266"
+                          value={latitude}
+                          onChange={(e) => setLatitude(e.target.value)}
+                          className="block w-full rounded-xl border border-gray-300 bg-white pl-9 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                          Longitude
+                        </label>
+                        <span className="text-[11px] text-gray-400">-180 to 180</span>
+                      </div>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                          <Icons.MapPin className="h-4 w-4" />
+                        </span>
+                        <input
+                          type="number"
+                          step="any"
+                          min="-180"
+                          max="180"
+                          placeholder="e.g. 74.8570"
+                          value={longitude}
+                          onChange={(e) => setLongitude(e.target.value)}
+                          className="block w-full rounded-xl border border-gray-300 bg-white pl-9 pr-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2 lg:col-span-1">
+                      <button
+                        type="submit"
+                        disabled={createProvider.isPending}
+                        className="w-full h-[42px] px-6 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center"
+                      >
+                        {createProvider.isPending ? (
+                          <span className="flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Adding...
+                          </span>
+                        ) : (
+                          'Add Provider'
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </form>
 
                 {error && (
                   <div className="mt-4 rounded-lg bg-red-50 p-3 border border-red-100 flex items-center gap-2">
-                    <Icons.AlertCircle className="w-4 h-4 text-red-600" />
+                    <Icons.AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                     <p className="text-sm text-red-600 font-medium">{error}</p>
                   </div>
                 )}
@@ -321,7 +442,7 @@ export default function ProvidersPage() {
                   <Icons.Search className="w-5 h-5 text-gray-400" />
                 </div>
                 <p className="text-gray-900 font-medium">No matches found</p>
-                <p className="text-sm text-gray-500 mt-1">We could not find any provider matching {searchTerm}.</p>
+                <p className="text-sm text-gray-500 mt-1">We could not find any provider matching &quot;{searchTerm}&quot;.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -443,6 +564,8 @@ function ProviderRowItem({
     .substring(0, 2)
     .toUpperCase();
 
+  const hasCoords = provider.latitude != null && provider.longitude != null;
+
   return (
     <div
       className={`group flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-6 bg-white rounded-2xl border ${
@@ -463,8 +586,8 @@ function ProviderRowItem({
           {initials}
         </div>
 
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h3 className={`text-lg font-bold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
               {provider.name}
             </h3>
@@ -482,22 +605,44 @@ function ProviderRowItem({
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mt-1">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-gray-500">
             <div className="flex items-center">
-              <span className="font-mono text-xs bg-gray-50 px-2 py-1 rounded border border-gray-100">
+              <span className="font-mono text-xs bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                 /{provider.slug}
               </span>
             </div>
+
             <div className="flex items-center gap-1.5">
               <Icons.Briefcase className="w-4 h-4 text-gray-400" />
               {isLoading ? (
-                <span className="animate-pulse">Loading services...</span>
+                <span className="animate-pulse text-xs">Loading services...</span>
               ) : (
-                <span>
+                <span className="text-xs">
                   {assigned.length} {assigned.length === 1 ? 'service' : 'services'}
                 </span>
               )}
             </div>
+
+            {/* Latitude & Longitude Tag */}
+            {hasCoords ? (
+              <a
+                href={`https://maps.google.com/?q=${provider.latitude},${provider.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View coordinates on Google Maps"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50/70 hover:bg-blue-100/70 px-2 py-0.5 rounded border border-blue-100 transition-colors"
+              >
+                <Icons.MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span className="font-mono text-[11px]">
+                  {Number(provider.latitude).toFixed(4)}, {Number(provider.longitude).toFixed(4)}
+                </span>
+              </a>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                <Icons.MapPin className="w-3.5 h-3.5 shrink-0 opacity-60" />
+                <span className="text-[11px]">No coords</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -507,7 +652,7 @@ function ProviderRowItem({
         <button
           type="button"
           onClick={onManageServices}
-          className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all"
+          className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all cursor-pointer"
         >
           <Icons.Briefcase className="w-4 h-4 text-gray-500" />
           Assign Services
@@ -516,7 +661,7 @@ function ProviderRowItem({
         <button
           type="button"
           onClick={onManageAccount}
-          className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold focus:outline-none focus:ring-2 transition-all ${
+          className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold focus:outline-none focus:ring-2 transition-all cursor-pointer ${
             displayEmail || provider.userId
               ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 focus:ring-blue-500/20'
               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 focus:ring-gray-200'
@@ -539,7 +684,7 @@ function ProviderRowItem({
           type="button"
           onClick={isActive ? onDelete : onEnable}
           disabled={isDeleting}
-          className={`flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
             isActive
               ? 'border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 focus:ring-red-500/20'
               : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 focus:ring-emerald-500/20'

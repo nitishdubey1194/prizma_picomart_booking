@@ -132,7 +132,7 @@ export function useUpdateAppointmentStatus(tenantSlug: string) {
 export function useCreateProvider(tenantSlug: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { name: string; slug: string; category: string }) => {
+    mutationFn: async (data: { name: string; slug: string; category: string, latitude: number | null, longitude: number | null }) => {
       const token = await getAccessToken();
       if (!token) throw new Error('Not signed in.');
       return createProvider(tenantSlug, token, data);

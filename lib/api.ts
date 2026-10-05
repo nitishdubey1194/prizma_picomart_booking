@@ -54,6 +54,8 @@ export type Provider = {
   userLinkEmail?: string | null;
   effectivePrice?: string | null;
   effectiveDuration?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 // export type Service = {
