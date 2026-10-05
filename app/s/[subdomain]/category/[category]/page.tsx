@@ -10,7 +10,7 @@ async function fetchProviders(category: string, subdomain: string) {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_ORIGIN}/api/providers?category=${encodeURIComponent(category)}`,
     {
-      headers: { "x-subdomain": subdomain },
+      headers: { "x-tenant-slug": subdomain },
       next: { revalidate: 60 },
     }
   );

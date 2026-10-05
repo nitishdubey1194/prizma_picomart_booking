@@ -39,14 +39,14 @@ interface ProviderDetail {
   services?: ServiceItem[];
 }
 
-async function fetchProviderDetail(
+export async function fetchProviderDetail(
   slug: string,
   subdomain: string
 ): Promise<ProviderDetail | null> {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_ORIGIN}/api/providers/${slug}`,
     {
-      headers: { "x-subdomain": subdomain },
+      headers: { "x-tenant-slug": subdomain },
       cache: "no-store",
     }
   );

@@ -11,6 +11,7 @@ interface Provider {
   title?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
+  slug: string;
 }
 
 function titleCase(slug: string) {
@@ -55,7 +56,7 @@ export default async function ProvidersPage({ params }: PageProps) {
     <div className="min-h-screen bg-paper text-ink antialiased">
       <Nav businessName={businessName} base={base} isProvider={false} isVendor={false} />
       
-      <main className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
+      <main className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
         <div className="flex flex-wrap items-end justify-between gap-5 border-b border-ink/10 pb-6">
           <div>
             <p className="font-mono text-xs uppercase tracking-widest text-brass">Our team</p>
@@ -129,7 +130,7 @@ export default async function ProvidersPage({ params }: PageProps) {
                   </p>
 
                   <Link
-                    href={`/assistant?providerId=${provider.id}`}
+                    href={`/assistant/${provider.slug}`}
                     className="mt-5 inline-flex min-h-11 items-center justify-center bg-ink px-4 text-sm font-medium text-white transition-colors hover:bg-brass focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
                   >
                     Book with {provider.name}
