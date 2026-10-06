@@ -333,7 +333,10 @@ export default function ProvidersDirectory({ providers }: { providers: Provider[
                   </div>
 
                   {/* Booking CTA Button */}
-                  <Link className="flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 py-2.5 text-xs font-semibold text-white hover:bg-stone-800 focus:ring-2 focus:ring-stone-900/20 active:scale-[0.99] transition-all shadow-xs" href="{`/assistant/${provider.slug}`}">
+                  <Link 
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 py-2.5 text-xs font-semibold text-white hover:bg-stone-800 focus:ring-2 focus:ring-stone-900/20 active:scale-[0.99] transition-all shadow-xs" 
+                    href={`/assistant/${provider.slug}`}
+                  >
                     <span>Schedule Appointment</span>
                     <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
